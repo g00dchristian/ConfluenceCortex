@@ -439,12 +439,6 @@ class Confluence_Cortex():
 
 
 
-
-
-
-
-
-
 	def log(self,msg):
 		print(msg)
 		self.logger.info(msg)
