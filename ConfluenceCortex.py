@@ -411,6 +411,7 @@ class Confluence_Cortex():
 					orderType=oType
 					)
 				
+				
 				pkg.update({'clipSize':clipSize})
 				pkg.update({'Exchange_UUID':TC.oid})
 				pkg.update({'tPrice':TC.tPrice})
