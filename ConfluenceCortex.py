@@ -1,11 +1,18 @@
-from __future__ import print_function
-from binance.exceptions import BinanceAPIException, BinanceWithdrawException
-from bittrex_websocket.websocket_client import BittrexSocket as BSocket
-from binance.websockets import BinanceSocketManager
-from languageHandled import languageHandler
-from shifteraverage import calc
+### Lib Imports
 from slackclient import SlackClient
-from binance.client import Client
+import datetime
+import numpy as np
+from time import sleep
+import pandas as pd
+import logging
+import math
+import ccxt
+import time
+import sys
+import os
+
+### Repo Imports
+from shifteraverage import calc
 from tradeModule import TradeClient
 from genVolumeAnalysis import *
 from AbnorVol import *
@@ -20,30 +27,16 @@ from sqlog import refracFetch
 from sqlog import logCloseTrade
 from marketSentiment import Market_Sentiment
 from xlog import xlog
-import datetime
-import numpy as np
-from time import sleep
-import pandas as pd
-import keychain
-import logging
-import math
-import ccxt
-import time
-import sys
-import os
 
-"""
-TO-DO LIST:
-- pM minimum to stop trades on doji candles
-- log pM/vM values
-
-- NEED TO SET UP MEMORY-BASED REFRACTORY PERIOD
-"""
+### Offline Imports 
+from bnWebsocket.klines import bnStream
+from bnWebsocket.languageHandled import languageHandler
+from bnWebsocket import keychain
 
 
 
 
-
+### DataFram View Options
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
@@ -53,18 +46,22 @@ pd.set_option('display.width', None)
 class Confluence_Cortex():
 	def __init__(self, exchange, logFileName, TimeFrame):
 		#-- INTRINSIC --------------------------------------------------------------- 
+		localpath = r"C:\Users\Christian\Dropbox\Crypto\Python\ConfluenceCortex\\"
+
+		### Logging
 		self.logger = logging.getLogger(name = "Full")
 		#hdlr = logging.FileHandler(str(os.path.dirname(__file__)) +'\\' + logFileName)
-		lggrName = r"C:\Users\Christian\Dropbox\Crypto\Python\ConfluenceCortex\\"
-		hdlr = logging.FileHandler(lggrName + logFileName)
+		hdlr = logging.FileHandler(localpath + logFileName)
 		formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 		hdlr.setFormatter(formatter)
 		self.logger.addHandler(hdlr) 
 		self.logger.setLevel('INFO')
-		self.exchange=exchange
+
 		self.log('loaded')
-		self.TimeFrame=TimeFrame
 		#self.TimeFrame=sys.argv[1]
+
+		self.exchange=exchange
+		self.TimeFrame=TimeFrame
 		self.sc=SlackClient(keychain.slack.TradeAlertApp('BotUser'))
 		self.sc_read=SlackClient(keychain.slack.TradeAlertApp('OAuth'))
 
@@ -85,9 +82,9 @@ class Confluence_Cortex():
 		self.tradeRateLimiter = 0
 		self.maxTradeRate = 2 #1 trade every [self.maxTradeRate] seconds
 		self.p=131
-		self.confSetPath=lggrName+'confluenceValues.xlsx' 
+		self.confSetPath=localpath+'confluenceValues.xlsx' 
 		self.confSet=pd.read_excel(self.confSetPath,index_col=0)
-		self.databasepath=r'C:\Users\Christian\Dropbox\Crypto\Python\ConfluenceCortex\tradelog.db'
+		self.databasepath=localpath+'tradelog.db'
 		self.confSetMod=os.path.getmtime(self.confSetPath)
 		self.dbModTime=os.path.getmtime(self.databasepath)
 		self.openTradeList=openTrades()
@@ -96,12 +93,13 @@ class Confluence_Cortex():
 		self.lastPrice = {}
 		self.timeUpdate=time.time()
 
-		#-- WEBSOCKET ---------------------------------------------------------------
-		callbacks=[self.WebSocketFunction]
+
+		#-- MARKET MANAGMENT --------------------------------------------------------------- 
 		#ticker_fetch=getattr(ccxt,exchange)().fetch_tickers()
 		ticker_fetch = ['BTC/USDT']
 		#ticker_fetch = ['BTC/USDT', 'ETH/USDT', 'NEO/USDT', 'ADA/USDT', 'XRP/USDT']
 		self.market_jar=[]
+		
 		for market in ticker_fetch:
 			if market[-3:] != 'USD':
 				self.market_jar.append(market)
@@ -111,18 +109,16 @@ class Confluence_Cortex():
 				#self.data.update({parsedMarket[0]:None})
 				MSname = parsedMarket[0]+'_MS'
 				setattr(self, MSname, 'Unknown')
-				print(market)
-		
+				#print(market)
 		
 
-		#if exchange == 'bittrex':
-		#	self.bxSocket= tradingInterface(BittrexSocket(),self.market_jar,callbacks)
-		#	self.bnSocket= tradingInterface(BinanceSocket(),[],callbacks)
-		if exchange == 'binance':
-			#self.bxSocket= tradingInterface(BittrexSocket(),[],callbacks)
-			self.bnSocket= tradingInterface(BinanceSocket(self.TimeFrame),self.market_jar,callbacks)
+		#-- WEBSOCKET ---------------------------------------------------------------
+		callbacks=[self.WebSocketFunction]
+		bnStream(self.market_jar, self.TimeFrame, callbacks)
+		
+
 		self.FetchPast(exchange)
-	
+
 	def FetchPast(self, exchange):
 		for market in self.market_jar:
 			self.trades.update({market:[]})
