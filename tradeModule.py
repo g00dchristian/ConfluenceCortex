@@ -1,6 +1,6 @@
 ### Trade Module ###
 import ccxt
-import bnWebsocket.keychain
+from bnWebsocket import keychain
 
 """
 Inputs:

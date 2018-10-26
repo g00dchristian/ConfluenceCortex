@@ -68,8 +68,8 @@ def Price_Shear(df, propertyDic, EMAs):
 
 	else:
 		output='2 EMA inputs required'
-	print(df)
-	print(EMAcentre)
+	# print(df)
+	# print(EMAcentre)
 	return(output)
 
 #Price_Shear(df, propertyDic,[12,26])

@@ -37,6 +37,10 @@ from bnWebsocket import keychain
 
 
 ### DataFram View Options
+
+
+
+
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
@@ -67,9 +71,10 @@ class Confluence_Cortex():
 
 		
 		#-- TESTING --------------------------------------------------------------- 
-		testing = 0
+		testing = 1
 		if testing == 1:
 			self.testSwitch='-test'
+			self.log('###----------- TESTING MODE -----------###')
 		elif testing == 0:
 			self.testSwitch=''
 		self.tradesoccured=0
@@ -267,6 +272,7 @@ class Confluence_Cortex():
 		#-- LOCAL PRINTER ---------------------------------------------------------------
 		print('')
 		print(datetime.datetime.now())
+		print(f'Open Trades: {len(self.openTradeList)}')
 		print('TimeFrame: %s'%(self.TimeFrame))
 		print(pkg)
 		print(confluenceRating)
@@ -304,13 +310,13 @@ class Confluence_Cortex():
 
 					if closeQuery == 1:
 						try:
-							self.closedtradesoccured=self.closedtradesoccured+1
 							TC=TradeClient(exchange=pkg['Exchange'].lower(),
 								market=languageHandler(output_lang="TradeModule", inputs=[pkg['Market']], input_lang=pkg['Exchange'])[0],
 								clipSize=abs(trade['ClipSize']),
 								orderPrice=0.00000001,
 								orderType=closeOtype
 								)
+							self.closedtradesoccured=self.closedtradesoccured+1
 							logCloseTrade(trade['UUID'],TC.tPrice,trade['OrderPrice'],trade['ClipSize'],TC.oid)
 							trade.update({'Market':'Closed'})
 							trade.update({'ClipSize':0})
@@ -318,6 +324,7 @@ class Confluence_Cortex():
 							self.tradeRateLimiter = time.time()+self.maxTradeRate
 							self.refractoryList = refracFetch()
 							self.dbModTime = os.path.getmtime(self.databasepath)
+							self.openTradeList=openTrades()
 
 						except Exception as error_result:
 							closegatewayresult = ('FAILED-- attempt to send trade: %s'%(error_result))
@@ -399,13 +406,13 @@ class Confluence_Cortex():
 					oType=oType+self.testSwitch
 					clipSize=clipSize*-1
 
-				self.tradesoccured=self.tradesoccured+1
 				TC=TradeClient(exchange=pkg['Exchange'].lower(),
 					market=languageHandler(output_lang="TradeModule", inputs=[pkg['Market']], input_lang=pkg['Exchange'])[0],
 					clipSize=abs(clipSize),
 					orderPrice=0.00000001,
 					orderType=oType
 					)
+				self.tradesoccured=self.tradesoccured+1
 				
 				
 				pkg.update({'clipSize':clipSize})
@@ -420,6 +427,7 @@ class Confluence_Cortex():
 				self.refractoryList = refracFetch()
 				self.dbModTime = os.path.getmtime(self.databasepath)
 				self.log('Refractory_Periods updated')
+				self.openTradeList=openTrades()
 
 
 			except Exception as error_result:
