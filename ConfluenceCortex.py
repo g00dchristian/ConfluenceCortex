@@ -14,8 +14,7 @@ import os
 ### Repo Imports
 from shifteraverage import calc
 from tradeModule import TradeClient
-from genVolumeAnalysis import *
-from AbnorVol import *
+from VolumeAnalysis import *
 from Indicator_RSI import *
 from priceShear import Price_Shear
 from insideBar import *
@@ -124,6 +123,7 @@ class Confluence_Cortex():
 
 		self.FetchPast(exchange)
 
+
 	def FetchPast(self, exchange):
 		for market in self.market_jar:
 			self.trades.update({market:[]})
@@ -188,14 +188,11 @@ class Confluence_Cortex():
 				self.confSetMod=os.path.getmtime(self.confSetPath)
 				self.log('\nConfluence Settings Updated: \n%s'%(self.confSet))			
 			
-			self.Logic(df=df, market=kline.market)
+			self.Conditions(df=df, market=kline.market)
 
 
-
-
-	def Logic(self, df, market):
+	def Conditions(self, df, market):
 		#-- SETTINGS ---------------------------------------------------------------
-		CR = 0 #Confluence Rating
 		propertyDic = {
 		'Market':market,
 		'Periods':self.p,
@@ -207,65 +204,81 @@ class Confluence_Cortex():
 		'VolumeAnalysis':market+'_VA'
 		}
 
+		#-- MARKET LEVELS ----------------------------------------------------------
+		MS = Market_Sentiment(df, propertyDic)
+		#-- PRICE SHEAR ------------------------------------------------------------
+		PS = Price_Shear(df, propertyDic,[12,26])
+		#-- GENERIC VOLUME ---------------------------------------------------------
+		VA = Volume_Analysis(df, propertyDic)
+		#-- RSI --------------------------------------------------------------------
+		RSI = Indicator_RSI(df, propertyDic)
+		#-- INSIDE BAR -------------------------------------------------------------
+		IB = Inside_Bar(df, propertyDic)
+		#-- ABNORMAL VOLUME --------------------------------------------------------
+		AVol = Abnormal_Volume(df)
+
+		Market_Conditions={
+		'Levels':MS,
+		'Price_Shear':PS,
+		'Volume':VA,
+		'RSI':RSI,
+		'Inside_Bar':IB,
+		'Abnormal_Volume':AVol,
+		'Last_Price':df.loc[1,'Close']
+		}
+
+		self.Cortex(Market_Conditions, market)
+
+
+
+	def Cortex(self, MC, market):
+		CR = 0 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
-
 		#-- MARKET SENTIMENT -------------------------------------------------------
-		MS = Market_Sentiment(df, propertyDic)
-		confluenceFactor.update({'Sentiment':MS['Sentiment']})
-		confluenceRating.update({'Sentiment':self.confSet.loc[MS['Sentiment'],'Market Sentiment']})
+		confluenceFactor.update({'Sentiment':MC['Levels']['Sentiment']})
+		confluenceRating.update({'Sentiment':self.confSet.loc[MC['Levels']['Sentiment'],'Market Sentiment']})
 		CR = CR + confluenceRating['Sentiment']
 		#-- BREAKING ------
-		confluenceFactor.update({'Break':MS['Breaking']})
-		confluenceRating.update({'Break':self.confSet.loc[MS['Breaking'],'Break']})
+		confluenceFactor.update({'Break':MC['Levels']['Breaking']})
+		confluenceRating.update({'Break':self.confSet.loc[MC['Levels']['Breaking'],'Break']})
 		CR = CR + confluenceRating['Break']
 		#-- PRICE SHEAR -------------------------------------------------------------
 		if self.TimeFrame != '1d':
-			PS = Price_Shear(df, propertyDic,[12,26])
-			confluenceFactor.update({'PriceShear':PS})
-			confluenceRating.update({'PriceShear':self.confSet.loc[PS,'PriceShear']})
+			confluenceFactor.update({'PriceShear':MC['Price_Shear']})
+			confluenceRating.update({'PriceShear':self.confSet.loc[MC['Price_Shear'],'PriceShear']})
 		#-- GENERIC VOLUME ----------------------------------------------------------
 		VA_Flipper=-1
-		VA = genVolumeAnalysis(df, propertyDic)
-		if VA['Type'] == 'Bull':
-			confluenceRating.update({'GenVolume':self.confSet.loc[VA['Accel/Decel'],'Generic Volume']})
+		if MC['Volume']['Type'] == 'Bull':
+			confluenceRating.update({'GenVolume':self.confSet.loc[MC['Volume']['Accel/Decel'],'Generic Volume']})
 			CR = CR + confluenceRating['GenVolume']
-		elif VA['Type'] == 'Bear':
-			confluenceRating.update({'GenVolume':self.confSet.loc[VA['Accel/Decel'],'Generic Volume']*VA_Flipper})
+		elif MC['Volume']['Type'] == 'Bear':
+			confluenceRating.update({'GenVolume':self.confSet.loc[MC['Volume']['Accel/Decel'],'Generic Volume']*VA_Flipper})
 			CR = CR + confluenceRating['GenVolume']
 		else: 
 			confluenceRating.update({'GenVolume':'ERROR'})
 			print('Generic Volume Error')
-		confluenceFactor.update({'GenVolume':(str(VA['Accel/Decel'])+'_'+str(VA['Type']))})
-
-		#-- RSI --------------------------------------------------------------------
-		RSI = Indicator_RSI(df, propertyDic)
-		confluenceFactor.update({'RSI':RSI})
-		confluenceRating.update({'RSI':self.confSet.loc[round_Down(RSI,10),'RSI']})
+		confluenceFactor.update({'GenVolume':(str(MC['Volume']['Accel/Decel'])+'_'+str(MC['Volume']['Type']))})
+		confluenceFactor.update({'RSI':MC['RSI']})
+		confluenceRating.update({'RSI':self.confSet.loc[round_Down(MC['RSI'],10),'RSI']})
 		CR = CR + confluenceRating['RSI']
-
 		#-- INSIDE BAR -------------------------------------------------------------
-		IB = InsideBar(df, propertyDic)
-		confluenceFactor.update({'IB':(str(IB['ConsecIB']))+'_'+str(IB['Status'])})
-		confluenceRating.update({'IB':IB['ConsecIB']*self.confSet.loc[IB['Status'],'IB']})	
+		confluenceFactor.update({'IB':(str(MC['Inside_Bar']['ConsecIB']))+'_'+str(MC['Inside_Bar']['Status'])})
+		confluenceRating.update({'IB':MC['Inside_Bar']['ConsecIB']*self.confSet.loc[MC['Inside_Bar']['Status'],'IB']})	
 		CR = CR + confluenceRating['IB']
-
 		#-- ABNORMAL VOLUME --------------------------------------------------------
-		AVol = AbnormalVolume(df)
-		confluenceFactor.update({'AbnorVol':AVol['Result']})
-		confluenceRating.update({'AbnorVol':self.confSet.loc[AVol['Result'],'AbnorVol']})
+		confluenceFactor.update({'AbnorVol':MC['Abnormal_Volume']['Result']})
+		confluenceRating.update({'AbnorVol':self.confSet.loc[MC['Abnormal_Volume']['Result'],'AbnorVol']})
 		CR = CR + confluenceRating['AbnorVol']
-
-
 		#-- INFO PACKAGE ---------------------------------------------------------------
 		pkg = {
 		'Market':market,
 		'RefracPeriod':60*60,
 		'Exchange':self.exchange.capitalize(),
 		'CR':CR,
-		'Market Sentiment': propertyDic['Sentiment'],
-		'RSI':RSI,
-		'Price':df.loc[1,'Close'],
+		'Market Sentiment': MC['Levels']['Sentiment'],
+		'RSI':MC['RSI'],
+		'Price':MC['Last_Price'],
 		'Strategy':'Confluence'+'_'+str(self.TimeFrame)
 		}
 
@@ -277,6 +290,10 @@ class Confluence_Cortex():
 		print(pkg)
 		print(confluenceRating)
 
+
+
+	def Logic(self, df, market):
+		
 		#-- CLOSE TRADE CHECK -------------------------------------------------- 
 		dbModCheck = os.path.getmtime(self.databasepath)
 		if self.dbModTime != dbModCheck:

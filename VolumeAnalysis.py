@@ -1,6 +1,36 @@
 
+def Volume_Analysis(df, propertyDic):
+	consecVolMin = 3
 
-def AbnormalVolume(df, vM=1.5, pM=1.1):
+	for index, row in df.iterrows():
+		#Volume Type - Bull/Bea
+		if row['Close']>=row['Open']:
+			df.loc[index, 'VolType'] = 'Bull'
+			volType = 'Bull'
+		if row['Close']<row['Open']:
+			df.loc[index, 'VolType'] = 'Bear'
+			volType = 'Bear'
+
+
+	if df.loc[1, 'VolType'] == df.loc[2, 'VolType'] == df.loc[3, 'VolType']:
+		if df.loc[1, 'Volume'] <= df.loc[1, 'Volume'] <= df.loc[1, 'Volume']:
+			propertyDic['VolumeAnalysis']='Decelerating'
+		elif df.loc[1, 'Volume'] >= df.loc[1, 'Volume'] >= df.loc[1, 'Volume']:
+			propertyDic['VolumeAnalysis']='Accelerating'
+		else:
+			propertyDic['VolumeAnalysis']='Nil'
+	else:
+		propertyDic['VolumeAnalysis']='Nil'
+
+
+	results = {
+	'Accel/Decel':propertyDic['VolumeAnalysis'],
+	'Type':volType
+	}
+	return results
+
+
+def Abnormal_Volume(df, vM=1.5, pM=1.1):
 	vdf=df[-30:]
 	vdf.loc[:,'Weighting'] = 1/(vdf.index**0.5)
 	weight_sum = vdf.loc[:,'Weighting'].sum()

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-def InsideBar(df, propertyDic):
+def Inside_Bar(df, propertyDic):
 	numCandles=15
 	consecIB=0
 	df=df[-int(numCandles):]
