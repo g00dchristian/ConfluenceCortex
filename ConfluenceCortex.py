@@ -277,7 +277,6 @@ class Confluence_Cortex():
 		print(pkg)
 		print(confluenceRating)
 
-
 		#-- CLOSE TRADE CHECK -------------------------------------------------- 
 		dbModCheck = os.path.getmtime(self.databasepath)
 		if self.dbModTime != dbModCheck:
