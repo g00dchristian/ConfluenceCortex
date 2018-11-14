@@ -6,7 +6,6 @@ import sqlite3
 def sqlogger(pkg,CR,CF):
 	tradeID = str(uuid4())
 	tradeIDstring = '`'+tradeID+'`'
-	print(tradeID)
 	conn = sqlite3.connect('tradelog.db')
 	c = conn.cursor()
 	#-- ENTER TRADE_LIST VALUES -------------------------------------------------------------
@@ -79,7 +78,7 @@ def sqlogger(pkg,CR,CF):
 			'Epoch':time.time()+pkg['RefracPeriod'],
 			})
 	conn.commit()
-	print('refrac entry')
+	print('SQLOG: refrac entry')
 
 	return tradeID
 
@@ -116,7 +115,6 @@ def logCloseTrade(uuid, closeprice, openprice, clipSize, oid):
 	conn.commit()
 
 	#Refractory Erase
-	print(stringuuid)
 	c.execute("DELETE FROM REFRACTORY_PERIODS WHERE UUID=?",(uuid,))
 	conn.commit()
 

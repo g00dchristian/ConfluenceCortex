@@ -81,9 +81,9 @@ class TradeClient():
 	def marketBuyTest(self):
 		self.tPrice=self.factory.fetch_ticker(self.market)['last']
 		self.oid='test'
-		print('trade occured')
+		print('  ! tradeModule traded')
 
 	def marketSellTest(self):
 		self.tPrice=self.factory.fetch_ticker(self.market)['last']
 		self.oid='test'
-		print('trade occured')
+		print('  ! tradeModule traded')

@@ -10,6 +10,7 @@ from tradeModule import TradeClient
 
 
 
+
 def Close_Trades(openTrades, pkg):
 	limiter=pkg['Trade_Limiter']
 	logReturn=[]
