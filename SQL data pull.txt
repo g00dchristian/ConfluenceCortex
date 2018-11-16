@@ -5,3 +5,11 @@ FROM Confluence_Ratings as CR
 	left join Trade_Results as TR
 		on CR.UUID = TR.UUID
 	
+
+SELECT TL.UUID, TL.Time , TR.OrderPrice,TR.ClosePrice,TL.Status, TL.Strategy, TL.Symbol, TR.Return, CR.Rating, CR.Sentiment, CR.Break, CR.GenVolume, CR.RSI, CR.AbnorVol, CR.InsideBar
+FROM Confluence_Ratings as CR
+	left join Trade_List as TL
+		ON CR.UUID = TL.UUID
+	left join Trade_Results as TR
+		on CR.UUID = TR.UUID
+	WHERE TL.Symbol = "BTCUSDT"
