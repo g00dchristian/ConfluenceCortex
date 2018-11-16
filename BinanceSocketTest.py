@@ -1,13 +1,11 @@
 from __future__ import print_function
 import ccxt
-from bittrex_websocket.websocket_client import BittrexSocket as BSocket
 from binance.websockets import BinanceSocketManager
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceWithdrawException
 from languageHandled import languageHandler
 from time import sleep
 import time
-
 
 
 

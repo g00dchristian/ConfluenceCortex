@@ -47,7 +47,7 @@ pd.set_option('display.width', None)
 class Confluence_Cortex():
 	def __init__(self, exchange, logFileName, TimeFrame):
 		#-- INTRINSIC --------------------------------------------------------------- 
-		localpath = r"C:\Users\Christian\Dropbox\Crypto\Python\ConfluenceCortex\\"
+		localpath = os.getcwd()+'//'
 
 		### Logging
 		self.logger = logging.getLogger(name = "Full")

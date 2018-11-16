@@ -1,6 +1,6 @@
 import pandas as pd
  
-df= pd.read_csv('C:\\Users\\Christian\\RedPanda\\DF.csv')
+#df= pd.read_csv('C:\\Users\\Christian\\RedPanda\\DF.csv')
 
 propertyDic = {
 'Market':'BTC',
