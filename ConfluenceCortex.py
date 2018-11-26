@@ -228,7 +228,7 @@ class Confluence_Cortex():
 		self.Cortex(Market_Conditions, market)
 
 	def Cortex(self, MC, market):
-		CR = -200 #Confluence Rating
+		CR = 200 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
 		#-- MARKET SENTIMENT -------------------------------------------------------

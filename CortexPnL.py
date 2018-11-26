@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from slacker import send_message
 import time
 import sqlite3
 import xlsxwriter 
@@ -6,17 +7,18 @@ import pandas as pd
 
 class PnL(object):
 	"""docstring for PnL"""
-	def __init__(self):
+	def __init__(self, report_type):
 		day=datetime.today().strftime('%Y-%m-%d')
 		dt = datetime.strptime(day, '%Y-%m-%d')
 		self.week = datetime(dt.year, dt.month, dt.day-7)
+		self.night = datetime(dt.year, dt.month, dt.day-1, 17)
 		self.end = self.week + timedelta(days=6)
 		self.day = datetime(dt.year, dt.month, dt.day)
 		self.all = datetime(2018,11,12)
 		self.date=day
-		self.fetchTrades()
+		self.fetchTrades(report_type)
 
-	def fetchTrades(self):
+	def fetchTrades(self, report_type):
 		"""Fetch all trades from database"""
 		conn = sqlite3.connect('tradelog.db')
 		c = conn.cursor()
@@ -41,14 +43,17 @@ class PnL(object):
 		conn.commit()
 		conn.close()
 		# return trades 
-		self.Scaffolding(trades,self.day, 'Daily')
-		print('done day Scaffolding')
-		self.Scaffolding(trades,self.week, 'Weekly')
-		print('done week Scaffolding')
-		self.Scaffolding(trades,self.all, 'All-Time')
-		print('done all Scaffolding')
-		self.ExcelWriter()
-
+		if report_type == 'Daily':
+			self.Scaffolding(trades,self.day, 'Daily')
+			print('done day Scaffolding')
+			self.Scaffolding(trades,self.week, 'Weekly')
+			print('done week Scaffolding')
+			self.Scaffolding(trades,self.all, 'All-Time')
+			print('done all Scaffolding')
+			self.ExcelWriter()
+		elif report_type == 'Nightly':
+			self.Scaffolding(trades, self.night, 'Nightly')
+			self.Slack()
 
 	def Scaffolding(self,trades,since, tf):
 		relTrades=[]
@@ -79,10 +84,10 @@ class PnL(object):
 				self.pairs[trade['Symbol']].update({'Profit':self.pairs[trade['Symbol']]['Profit']+1}) #Profit Trades
 			elif trade['Status'] == 'Loss':
 				self.pairs[trade['Symbol']].update({'Loss':self.pairs[trade['Symbol']]['Loss']+1}) #Loss Trades
-			self.pairs[trade['Symbol']].update({'Gross':self.pairs[trade['Symbol']]['Gross']+trade['Return']}) #Gross
 			if trade['Status'] != 'Open':
+				self.pairs[trade['Symbol']].update({'Gross':self.pairs[trade['Symbol']]['Gross']+trade['Return']}) #Gross
 				self.pairs[trade['Symbol']].update({'Fees':self.pairs[trade['Symbol']]['Fees']-(0.00075*2)}) #Fees
-			self.pairs[trade['Symbol']].update({'Return':self.pairs[trade['Symbol']]['Return']+trade['Return']-(0.00075*2)})		
+				self.pairs[trade['Symbol']].update({'Return':self.pairs[trade['Symbol']]['Return']+trade['Return']-(0.00075*2)})		
 			self.pairs[trade['Symbol']].update({'PnL':self.pairs[trade['Symbol']]['PnL']+trade['USD']*self.pairs[trade['Symbol']]['Return']}) #PnL
 
 
@@ -209,4 +214,16 @@ class PnL(object):
 		worksheet.set_column('H:H', 8.43, percent_format)
 		writer.save()
 
-PnL()
+
+
+	def Slack(self):
+		print(self.pairs['Total'])
+		if len(self.pairs) == 1:
+			msg = 'CORTEX UPDATE-- No trades overnight'
+		else:
+			t=self.pairs['Total']
+			opTrades = f'{t["Open"]} Trade(s) still Open\n'
+			none_open = 'All Trades Closed\n'
+			msg = f'{t["Trades"]} Overnight Cortex Trades\n{opTrades if t["Open"]>0 else none_open}Closed Trades Net Return: {(t["Return"]*100):.2f}%'
+			print(msg)
+		send_message(msg)
