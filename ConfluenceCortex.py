@@ -61,6 +61,7 @@ class Confluence_Cortex():
 		self.log('loaded')
 		#self.TimeFrame=sys.argv[1]
 
+		self.cortex_version=2.00
 		self.exchange=exchange
 		self.TimeFrame=TimeFrame
 		self.sc=SlackClient(keychain.slack.TradeAlertApp('BotUser'))
@@ -227,7 +228,7 @@ class Confluence_Cortex():
 		self.Cortex(Market_Conditions, market)
 
 	def Cortex(self, MC, market):
-		CR = 200 #Confluence Rating
+		CR = -200 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
 		#-- MARKET SENTIMENT -------------------------------------------------------
@@ -281,12 +282,13 @@ class Confluence_Cortex():
 		'Testing':self.testSwitch,
 		'Trade_Limiter':self.tradeRateLimiter,
 		'Limiter_Rate':self.maxTradeRate,
+		'Version':self.cortex_version
 
 		}
 
 		#-- TRADE SIZE --------------------------------------------------
 		tradepkg={
-		'usdClipSize':5,
+		'usdClipSize':15,
 		'MaxPair':50,
 		'MaxOpen':100,
 		'CR':confluenceRating,

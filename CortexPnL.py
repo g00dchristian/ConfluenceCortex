@@ -9,10 +9,10 @@ class PnL(object):
 	def __init__(self):
 		day=datetime.today().strftime('%Y-%m-%d')
 		dt = datetime.strptime(day, '%Y-%m-%d')
-		self.week = dt - timedelta(days=dt.weekday())
+		self.week = datetime(dt.year, dt.month, dt.day-7)
 		self.end = self.week + timedelta(days=6)
 		self.day = datetime(dt.year, dt.month, dt.day)
-		self.all = datetime(2018,1,1)
+		self.all = datetime(2018,11,12)
 		self.date=day
 		self.fetchTrades()
 
@@ -41,13 +41,16 @@ class PnL(object):
 		conn.commit()
 		conn.close()
 		# return trades 
-		self.Scaffolding(trades,self.day)
-		self.Scaffolding(trades,self.week)
-		self.Scaffolding(trades,self.all)
+		self.Scaffolding(trades,self.day, 'Daily')
+		print('done day Scaffolding')
+		self.Scaffolding(trades,self.week, 'Weekly')
+		print('done week Scaffolding')
+		self.Scaffolding(trades,self.all, 'All-Time')
+		print('done all Scaffolding')
 		self.ExcelWriter()
 
 
-	def Scaffolding(self,trades,since):
+	def Scaffolding(self,trades,since, tf):
 		relTrades=[]
 		for trade in trades:
 			if trade['Time']>since:
@@ -76,11 +79,12 @@ class PnL(object):
 				self.pairs[trade['Symbol']].update({'Profit':self.pairs[trade['Symbol']]['Profit']+1}) #Profit Trades
 			elif trade['Status'] == 'Loss':
 				self.pairs[trade['Symbol']].update({'Loss':self.pairs[trade['Symbol']]['Loss']+1}) #Loss Trades
-			self.pairs[trade['Symbol']].update({'Gross':self.pairs[trade['Symbol']]['Gross']+trade['Return']*100}) #Gross
+			self.pairs[trade['Symbol']].update({'Gross':self.pairs[trade['Symbol']]['Gross']+trade['Return']}) #Gross
 			if trade['Status'] != 'Open':
-				self.pairs[trade['Symbol']].update({'Fees':self.pairs[trade['Symbol']]['Fees']+(0.075*2)}) #Fees
-			self.pairs[trade['Symbol']].update({'Return':self.pairs[trade['Symbol']]['Return']+trade['Return']*100-(0.075*2)})		
-			self.pairs[trade['Symbol']].update({'PnL':self.pairs[trade['Symbol']]['PnL']+trade['USD']*self.pairs[trade['Symbol']]['Return']/100}) #PnL
+				self.pairs[trade['Symbol']].update({'Fees':self.pairs[trade['Symbol']]['Fees']-(0.00075*2)}) #Fees
+			self.pairs[trade['Symbol']].update({'Return':self.pairs[trade['Symbol']]['Return']+trade['Return']-(0.00075*2)})		
+			self.pairs[trade['Symbol']].update({'PnL':self.pairs[trade['Symbol']]['PnL']+trade['USD']*self.pairs[trade['Symbol']]['Return']}) #PnL
+
 
 		######## Total Dic
 		self.pairs.update({'Total':{
@@ -98,7 +102,6 @@ class PnL(object):
 		####### Compile trades into pairs
 		for pair in self.pairs:
 			if pair != 'Total':
-				print(pair, self.pairs[pair]['Trades'])
 				self.pairs['Total'].update({'Trades':self.pairs['Total']['Trades']+self.pairs[pair]['Trades']})
 				self.pairs['Total'].update({'Open':self.pairs['Total']['Open']+self.pairs[pair]['Open']})
 				self.pairs['Total'].update({'Profit':self.pairs['Total']['Profit']+self.pairs[pair]['Profit']})
@@ -109,14 +112,7 @@ class PnL(object):
 				self.pairs['Total'].update({'PnL':self.pairs['Total']['PnL']+self.pairs[pair]['PnL']})
 
 		print(self.pairs['Total'])
-
-		if since==self.day:
-			xlname='Daily'
-		elif since==self.week:
-			xlname='Weekly'
-		elif since==self.all:
-			xlname='All-Time'
-		setattr(self,xlname,pd.DataFrame(self.pairs).transpose())
+		setattr(self,tf,pd.DataFrame(self.pairs).transpose())
 
 
 
@@ -145,34 +141,72 @@ class PnL(object):
 		weeklyrow=dailylen+6
 		alltimerow=weeklyrow+weeklylen+5
 
+
+		total_format=workbook.add_format({'bg_color':'#C0C0C0','bold':True})
+		negative_format = workbook.add_format({'bg_color': '#FFC7CE',
+		                               'font_color': '#9C0006'})
+		positive_format = workbook.add_format({'bg_color': '#C6EFCE',
+                               'font_color': '#006100'})
+
 		getattr(self,'Daily').to_excel(writer, sheet_name='Sheet1', startrow=1)
 		worksheet = writer.sheets['Sheet1']
 		if len(getattr(self,'Daily')) == 1:
 			worksheet.merge_range('B3:I3', 'NO TRADES', noTrade_format)
 		else:
-			worksheet.conditional_format(f'H3:H{3+dailylen}', {'type': '3_color_scale'})
+			worksheet.conditional_format(f'H3:H{3+dailylen-2}',{'type': 'cell',
+                                         'criteria': '>',
+                                         'value': 0,
+                                         'format': positive_format})
+			worksheet.conditional_format(f'H3:H{3+dailylen-2}',{'type': 'cell',
+                                         'criteria': '<',
+                                         'value': 0,
+                                         'format': negative_format})
+			worksheet.conditional_format(f'A{3+dailylen-1}:I{3+dailylen-1}', {'type': 'no_errors','format':total_format})
 			
 
 		getattr(self,'Weekly').to_excel(writer, sheet_name='Sheet1', startrow=weeklyrow)
 		if len(getattr(self,'Weekly')) == 1:
 			worksheet.merge_range(f'B{weeklyrow+1}:I{weeklyrow+1}', 'NO TRADES', noTrade_format)		
 		else:
-			worksheet.conditional_format(f'H{weeklyrow+1}:H{weeklyrow+1+weeklylen-1}', {'type': '3_color_scale'})
+			worksheet.conditional_format(f'H{weeklyrow+2}:H{weeklyrow+1+weeklylen-1}',{'type': 'cell',
+                                         'criteria': '>',
+                                         'value': 0,
+                                         'format': positive_format})
+			worksheet.conditional_format(f'H{weeklyrow+2}:H{weeklyrow+1+weeklylen-1}',{'type': 'cell',
+                                         'criteria': '<',
+                                         'value': 0,
+                                         'format': negative_format})
+			worksheet.conditional_format(f'A{weeklyrow+1+weeklylen}:I{weeklyrow+1+weeklylen}', {'type': 'no_errors','format':total_format})
+
 
 		getattr(self,'All-Time').to_excel(writer, sheet_name='Sheet1', startrow=alltimerow)
 		if len(getattr(self,'All-Time')) == 1:
 			worksheet.merge_range(f'B{alltimerow+1}:I{alltimerow+1}', 'NO TRADES', noTrade_format)		
 		else:
-			worksheet.conditional_format(f'H{alltimerow+1}:H{alltimerow+1+alltimelen-1}', {'type': '3_color_scale'})
+			worksheet.conditional_format(f'H{alltimerow+2}:H{alltimerow+1+alltimelen-1}',{'type': 'cell',
+                                         'criteria': '>',
+                                         'value': 0,
+                                         'format': positive_format})
+			worksheet.conditional_format(f'H{alltimerow+2}:H{alltimerow+1+alltimelen-1}',{'type': 'cell',
+                                         'criteria': '<',
+                                         'value': 0,
+                                         'format': negative_format})			
+			worksheet.conditional_format(f'A{alltimerow+1+alltimelen}:I{alltimerow+1+alltimelen}', {'type': 'no_errors','format':total_format})
 
 
-			
-		worksheet.merge_range('A1:I1', 'Daily', merge_format)
 
-		worksheet.merge_range(f'A{weeklyrow}:I{weeklyrow}', 'Weekly', merge_format)
-
+		#### Table Headers
+		worksheet.merge_range('A1:I1', f'Daily - {self.day.strftime("%Y-%m-%d")}', merge_format)
+		worksheet.merge_range(f'A{weeklyrow}:I{weeklyrow}', f'Last 7 Days - {self.week.strftime("%Y-%m-%d")}', merge_format)
 		worksheet.merge_range(f'A{alltimerow}:I{alltimerow}', 'All-Time', merge_format)
 
+		#### Cell Formatting
+		currency_format = workbook.add_format({'num_format':'$#,##0.00'})
+		percent_format = workbook.add_format({'num_format':'0.00%'})
 
+		worksheet.set_column('B:C', 8.43, percent_format)
+		worksheet.set_column('F:F', 8.43, currency_format)
+		worksheet.set_column('H:H', 8.43, percent_format)
 		writer.save()
+
 PnL()

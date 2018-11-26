@@ -45,7 +45,7 @@ def Close_Trades(openTrades, pkg):
 							orderPrice=0.00000001,
 							orderType=closeOtype
 							)
-						logCloseTrade(trade['UUID'],TC.tPrice,trade['OrderPrice'],trade['ClipSize'],TC.oid)
+						logCloseTrade(trade['UUID'],trade['Open_Time'],TC.tPrice,trade['OrderPrice'],trade['ClipSize'],TC.oid)
 
 						trade.update({'Market':'Closed'})
 						trade.update({'ClipSize':0})

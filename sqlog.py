@@ -9,7 +9,7 @@ def sqlogger(pkg,CR,CF):
 	conn = sqlite3.connect('tradelog.db')
 	c = conn.cursor()
 	#-- ENTER TRADE_LIST VALUES -------------------------------------------------------------
-	c.execute("INSERT INTO Trade_List(UUID,Time,Symbol,Status,Clip_Size,Strategy,USD_Value,Exchange) VALUES(:UUID,:Time,:Symbol,:Status,:Clip_Size,:Strategy,:USD_Value,:Exchange)",
+	c.execute("INSERT INTO Trade_List(UUID,Time,Symbol,Status,Clip_Size,Strategy,USD_Value,Exchange,Version) VALUES(:UUID,:Time,:Symbol,:Status,:Clip_Size,:Strategy,:USD_Value,:Exchange,:Version)",
 			{
 			'UUID':tradeID,
             'Time':datetime.now(),
@@ -18,7 +18,8 @@ def sqlogger(pkg,CR,CF):
             'Clip_Size':pkg['clipSize'],
             'Strategy':pkg['Strategy'],
             'USD_Value':pkg['USD'],
-            'Exchange':pkg['Exchange']
+            'Exchange':pkg['Exchange'],
+            'Version':pkg['Version']
             })
 	conn.commit()
 
@@ -69,7 +70,7 @@ def sqlogger(pkg,CR,CF):
 	conn.commit()
 
 	#-- ENTER REFRACTORY_PERIOD -------------------------------------------------------------------
-	c.execute("INSERT INTO REFRACTORY_PERIODS(UUID, Symbol, Time, Strategy, Epoch) VALUES(:UUID, :Symbol,:Time,:Strategy,:Epoch)",
+	c.execute("INSERT INTO REFRACTORY_PERIODS(UUID, Symbol, Time, Strategy, Epoch) VALUES(:UUID,:Symbol,:Time,:Strategy,:Epoch)",
 			{
 			'UUID':tradeID, 
 			'Symbol':pkg['Market'], 
@@ -83,8 +84,10 @@ def sqlogger(pkg,CR,CF):
 	return tradeID
 
 
-def logCloseTrade(uuid, closeprice, openprice, clipSize, oid):
+def logCloseTrade(uuid, opentime, closeprice, openprice, clipSize, oid):
 	conn = sqlite3.connect('tradelog.db')
+	open_time=datetime.strptime(opentime,'%Y-%m-%d %H:%M:%S.%f').timestamp()
+	print
 	c = conn.cursor()
 	stringuuid=('"'+str(uuid)+'"')
 	#Side
@@ -102,12 +105,15 @@ def logCloseTrade(uuid, closeprice, openprice, clipSize, oid):
 	else:
 		status='ERROR'
 
+	now = datetime.now()
+
 	#Update Trade_List Status
-	c.execute("UPDATE Trade_Results set ClosePrice=?, Return=?, PnL=? WHERE UUID=?",(closeprice,returnValue,pnl,uuid))
+	c.execute("UPDATE Trade_Results set ClosePrice=?, Return=?, PnL=?, Trade_Duration=? WHERE UUID=?",(closeprice,returnValue,pnl,open_time-now.timestamp(),uuid))
 	conn.commit()
 
+
 	#Retrive and Update Trade_Results
-	c.execute("UPDATE TRADE_LIST set Status=? WHERE UUID=?",(status,uuid))
+	c.execute("UPDATE TRADE_LIST set Status=?, Close_Time=? WHERE UUID=?",(status,now,uuid))
 	conn.commit()
 
 	#Update Exchange Close OID
@@ -129,7 +135,7 @@ def openTrades():
 	conn = sqlite3.connect('tradelog.db')
 	c = conn.cursor()
 	trades = []
-	SQL='''SELECT Trade_List.UUID, Trade_List.SYMBOL, Trade_List.STRATEGY, Trade_Results.OrderPrice, Trade_List.USD_VALUE, Trade_List.Clip_Size FROM Trade_List
+	SQL='''SELECT Trade_List.UUID, Trade_List.SYMBOL, Trade_List.STRATEGY, Trade_Results.OrderPrice, Trade_List.USD_VALUE, Trade_List.Clip_Size, Trade_List.Time FROM Trade_List
 		INNER JOIN Trade_Results
 		ON Trade_List.UUID=Trade_Results.UUID
 		WHERE Trade_List.Status = "Open"'''
@@ -142,6 +148,7 @@ def openTrades():
 		trade.update({'OrderPrice':entry[3]})
 		trade.update({'USD_Value':entry[4]})
 		trade.update({'ClipSize':entry[5]})
+		trade.update({'Open_Time':entry[6]})
 		trades.append(trade)
 	conn.commit()
 	conn.close()
@@ -168,3 +175,4 @@ def refracFetch():
 
 
 
+  
