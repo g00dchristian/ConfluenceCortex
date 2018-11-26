@@ -1,3 +1,7 @@
 Confluence.log
+__pycache__/ 
 __pycache__/
-tradelog.db
+token.json
+credentials.json
+.DS_Store
+.credentials
