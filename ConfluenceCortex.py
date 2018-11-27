@@ -61,7 +61,7 @@ class Confluence_Cortex():
 		self.log('loaded')
 		#self.TimeFrame=sys.argv[1]
 
-		self.cortex_version=2.00
+		self.cortex_version=2.01
 		self.exchange=exchange
 		self.TimeFrame=TimeFrame
 		self.sc=SlackClient(keychain.slack.TradeAlertApp('BotUser'))

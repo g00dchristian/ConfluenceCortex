@@ -42,6 +42,7 @@ class PnL(object):
 			trades.append(trade)
 		conn.commit()
 		conn.close()
+
 		# return trades 
 		if report_type == 'Daily':
 			self.Scaffolding(trades,self.day, 'Daily')
@@ -161,7 +162,7 @@ class PnL(object):
 			worksheet.conditional_format(f'H3:H{3+dailylen-2}',{'type': 'cell',
                                          'criteria': '>',
                                          'value': 0,
-                                         'format': positive_format})
+                                         'format': positive_format}) 
 			worksheet.conditional_format(f'H3:H{3+dailylen-2}',{'type': 'cell',
                                          'criteria': '<',
                                          'value': 0,
@@ -227,3 +228,5 @@ class PnL(object):
 			msg = f'{t["Trades"]} Overnight Cortex Trades\n{opTrades if t["Open"]>0 else none_open}Closed Trades Net Return: {(t["Return"]*100):.2f}%'
 			print(msg)
 		send_message(msg)
+
+
