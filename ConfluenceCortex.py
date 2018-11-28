@@ -1,8 +1,11 @@
 ### Lib Imports
 from slackclient import SlackClient
+from queue import Queue
 import datetime
+from uuid import uuid4
 import numpy as np
 from time import sleep
+import threading
 import pandas as pd
 import logging
 import math
@@ -10,6 +13,7 @@ import ccxt
 import time
 import sys
 import os
+
 
 ### Repo Imports
 from shifteraverage import calc
@@ -34,14 +38,47 @@ from bnWebsocket.klines import bnStream
 from bnWebsocket.languageHandled import languageHandler
 from bnWebsocket import keychain
 
-#test
-
 
 ### DataFram View Options
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
 #pd.set_option('display.height', None)
+
+sql_lock = threading.Lock()
+
+class SQL_Thread(threading.Thread):
+    def __init__(self, queue, args=(), kwargs=None):
+        threading.Thread.__init__(self, args=(), kwargs=None)
+        self.queue = queue
+        self.daemon = False
+        # self.receive_messages = args[0]
+	
+    def run(self):
+	    # print(threading.currentThread().getName(), self.receive_messages)
+        while True:
+	        val = self.queue.get()
+	        if val is None:   # If you send `None`, the thread will exit.
+	            return
+	        self.do_thing_with_message(val)
+
+    def do_thing_with_message(self, data):
+    	with sql_lock:
+    		if data[0]=='Open':
+    			sqlogger(*data[1])
+    			self.queue.task_done()
+
+    		if data[0]=='Close':
+    			logCloseTrade(*data[1])
+    			self.queue.task_done()
+
+    		if data[0]=='refracFetch':
+    			setattr(self,data[1],refracFetch())
+    			self.queue.task_done()
+
+    		if data[0]=='openTrades':
+    			setattr(self,data[1],openTrades())
+    			self.queue.task_done()
 
 
 class Confluence_Cortex():
@@ -60,8 +97,7 @@ class Confluence_Cortex():
 
 		self.log('loaded')
 		#self.TimeFrame=sys.argv[1]
-
-		self.cortex_version=3.01
+		self.cortex_version=3.10
 		self.exchange=exchange
 		self.TimeFrame=TimeFrame
 		self.sc=SlackClient(keychain.slack.TradeAlertApp('BotUser'))
@@ -76,6 +112,11 @@ class Confluence_Cortex():
 		elif testing == 0:
 			self.testSwitch=''
 
+		#-- THREAD MANAGEMENT ----------------------------------------------------------------
+		self.threads = {}
+		q=Queue()
+		self.threads.update({'SQLT':SQL_Thread(q)})
+		self.threads['SQLT'].start()
 
 		#-- EXTRINSIC --------------------------------------------------------------- 
 		self.data = {}
@@ -89,19 +130,25 @@ class Confluence_Cortex():
 		self.databasepath=localpath+'tradelog.db'
 		self.confSetMod=os.path.getmtime(self.confSetPath)
 		self.dbModTime=os.path.getmtime(self.databasepath)
-		self.openTradeList=openTrades()
-		print(f'Open Trades: {len(self.openTradeList)}')
-		self.refractoryList = refracFetch()
+		temp_uuid=str(uuid4())
+		self.threads['SQLT'].queue.put(['openTrades',temp_uuid])
+		self.threads['SQLT'].queue.join()
+		self.openTradeList=getattr(self.threads['SQLT'],temp_uuid)
+		print(self.openTradeList)
+		temp_uuid_2=str(uuid4())
+		self.threads['SQLT'].queue.put(['refracFetch',temp_uuid_2])
+		self.threads['SQLT'].queue.join()
+		self.refractoryList=getattr(self.threads['SQLT'],temp_uuid_2)
+		print(self.refractoryList)
 		self.lastPrice = {}
 		self.timeUpdate=time.time()
 
 
-		#-- MARKET MANAGMENT --------------------------------------------------------------- 
+		#-- MARKET MANAGEMENT --------------------------------------------------------------- 
 		#ticker_fetch=getattr(ccxt,exchange)().fetch_tickers()
 		ticker_fetch = ['BTC/USDT']
 		#ticker_fetch = ['BTC/USDT', 'ETH/USDT', 'NEO/USDT', 'ADA/USDT', 'XRP/USDT']
 		self.market_jar=[]
-		
 		for market in ticker_fetch:
 			if market[-3:] != 'USD':
 				self.market_jar.append(market)
@@ -113,6 +160,7 @@ class Confluence_Cortex():
 				setattr(self, MSname, 'Unknown')
 				#print(market)
 		
+
 
 		#-- WEBSOCKET ---------------------------------------------------------------
 		callbacks=[self.WebSocketFunction]
@@ -136,7 +184,7 @@ class Confluence_Cortex():
 			for candle in getattr(self,name):
 				pdEntry = {}
 				pdEntry.update({'Time': candle[0]})
-				pdEntry.update({'Volume' : candle[5]})
+				pdEntry.update({'Volume':candle[5]})
 				pdEntry.update({'High':candle[2]})
 				pdEntry.update({'Low':candle[3]})
 				pdEntry.update({'Open':candle[1]})
@@ -228,7 +276,7 @@ class Confluence_Cortex():
 		self.Cortex(Market_Conditions, market)
 
 	def Cortex(self, MC, market):
-		CR = 200 #Confluence Rating
+		CR = -200 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
 		#-- MARKET SENTIMENT -------------------------------------------------------
@@ -309,14 +357,28 @@ class Confluence_Cortex():
 		if len(CT['Log'])>0:
 			for msg in CT['Log']:
 				self.log(f'Close Gateway Result: {msg}')
-		
+
+		if CT['SQL']!=0:
+			print('Adding open trade to SQL queue')
+			self.threads['SQLT'].queue.put(CT['SQL'])
 
 		if CT['Trade_Status'] == 1:
 			print(CT)
-			self.refractoryList = refracFetch()
+			### Refractory Periods
+			temp_uuid_2=str(uuid4())
+			self.threads['SQLT'].queue.put(['refracFetch',temp_uuid_2])
+			self.threads['SQLT'].queue.join()
+			self.refractoryList=getattr(self.threads['SQLT'],temp_uuid_2)
+
 			self.tradeRateLimiter = CT['Trade_Limiter'] 
 			self.dbModTime = os.path.getmtime(self.databasepath)
-			self.openTradeList=openTrades()
+
+			### Open Trade List
+			temp_uuid=str(uuid4())
+			self.threads['SQLT'].queue.put(['openTrades',temp_uuid])
+			self.threads['SQLT'].queue.join()
+			self.openTradeList=getattr(self.threads['SQLT'],temp_uuid)
+			print(self.openTradeList)
 		
 
 
@@ -334,14 +396,29 @@ class Confluence_Cortex():
 				for msg in OT['Log']:
 					self.log(f'Open Gateway Result: {msg}')
 
+			if OT['SQL']!=0:
+				print('Adding open trade to SQL queue')
+				self.threads['SQLT'].queue.put(OT['SQL'])
+
+
 			if OT['Trade_Status'] == 1:
 				self.tradeRateLimiter = OT['Trade_Limiter']
-				self.refractoryList = refracFetch()
+				### Refractory Periods
+				temp_uuid_2=str(uuid4())
+				self.threads['SQLT'].queue.put(['refracFetch',temp_uuid_2])
+				self.threads['SQLT'].queue.join()
+				self.refractoryList=getattr(self.threads['SQLT'],temp_uuid_2)
+
 				self.log('Refractory_Periods updated')
-				self.openTradeList=openTrades()
+
+				### Open Trade List
+				temp_uuid=str(uuid4())
+				self.threads['SQLT'].queue.put(['openTrades',temp_uuid])
+				self.threads['SQLT'].queue.join()
+				self.openTradeList=getattr(self.threads['SQLT'],temp_uuid)
+				print(self.openTradeList)
+
 				self.dbModTime = os.path.getmtime(self.databasepath)
-
-
 
 
 
@@ -351,179 +428,6 @@ class Confluence_Cortex():
 		print('LOG: '+msg)
 		self.logger.info(msg)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-	# def Logic(self, df, market):
-		
-
-
-
-	# 	#-- CLOSE TRADE CHECK -------------------------------------------------- 
-	# 	dbModCheck = os.path.getmtime(self.databasepath)
-	# 	if self.dbModTime != dbModCheck:
-	# 		self.openTradeList = openTrades()
-	# 		self.refractoryList = refracFetch()
-	# 		self.dbModTime = dbModCheck
-	# 		self.log('Database modified... Open_Trades & Refractory_Periods updated')
-	# 	if len(self.openTradeList)>0:
-	# 		closeQuery=0
-	# 		logGateway=0
-	# 		for trade in self.openTradeList:
-	# 			if trade['Market']==pkg['Market'] and trade['Strategy']==pkg['Strategy']:
-	# 				print(trade)
-	# 				print('Closable Market: %s'%(trade['Market']))
-	# 				#LIMITATION: The Trade Check only refers to the same strategy timeperiod... i.e. the 4h confluence cannot affect the 1d trades
-	# 				if CR <50 and trade['ClipSize']>0:
-	# 					closeOtype='market-sell'
-	# 					closeOtype=closeOtype+self.testSwitch
-	# 					closeQuery=1
-	# 					logGateway=1
-	# 				if CR >-50 and trade['ClipSize']<0:
-	# 					closeOtype='market-buy'
-	# 					closeOtype=closeOtype+self.testSwitch
-	# 					closeQuery=1
-	# 					logGateway=1 
-					
-	# 				if time.time() < self.tradeRateLimiter:
-	# 					closeQuery=0
-	# 					closegatewayresult=('FAILED-- Trade Rate Limiter Exceeded')
-
-	# 				if closeQuery == 1:
-	# 					try:
-	# 						TC=TradeClient(exchange=pkg['Exchange'].lower(),
-	# 							market=languageHandler(output_lang="TradeModule", inputs=[pkg['Market']], input_lang=pkg['Exchange'])[0],
-	# 							clipSize=abs(trade['ClipSize']),
-	# 							orderPrice=0.00000001,
-	# 							orderType=closeOtype
-	# 							)
-	# 						self.closedtradesoccured=self.closedtradesoccured+1
-	# 						logCloseTrade(trade['UUID'],TC.tPrice,trade['OrderPrice'],trade['ClipSize'],TC.oid)
-	# 						trade.update({'Market':'Closed'})
-	# 						trade.update({'ClipSize':0})
-	# 						closegatewayresult = ('Trade Closed-- %s'%(trade['UUID']))
-	# 						self.tradeRateLimiter = time.time()+self.maxTradeRate
-	# 						self.refractoryList = refracFetch()
-	# 						self.dbModTime = os.path.getmtime(self.databasepath)
-	# 						self.openTradeList=openTrades()
-
-	# 					except Exception as error_result:
-	# 						closegatewayresult = ('FAILED-- attempt to send trade: %s'%(error_result))
-					
-	# 				if logGateway==1:
-	# 					self.log('CloseTrade Gateway: %s'%(closegatewayresult))
-
-
-
-	# 	#-- OPEN TRADE-------------------------------------------------- 
-	# 	if CR <= -100:
-	# 		pkg.update({'Side':'sell'})
-	# 		self.TradeGateway(pkg, tradepkg, confluenceRating, confluenceFactor)
-	# 	elif CR >= 100:
-	# 		pkg.update({'Side':'buy'})
-	# 		self.TradeGateway(pkg, tradepkg, confluenceRating, confluenceFactor)
-
-
-
-	# # - Move Trade Function to Standalone Script
-	# # - Open Trade LIST
-	# # 		- Sum Values of Open Trades
-	# # 		- Max Value of open trades
-	# # - Set MAX single pair open trades
-	# # - Set Refractory period for confluence timeframe+pair
-	# # - refractory period data to be stored in tradelog db
-	# # - Make Close Trade Function on the same script as the Trade Function
-	# # - Daily stop/start for Confluence_Cortex scripts
-
-
-
-	# def TradeGateway(self, pkg, tpkg, confluenceRating, confluenceFactor):
-	# 	self.log('OpenTrade Gateway: Trade Received')
-	# 	eligible=1
-	# 	if len(self.refractoryList)>0:
-	# 		for datum in self.refractoryList:
-	# 			if datum['Market'] == pkg['Market'] and datum['Strategy'] == pkg['Strategy'] and time.time()<datum['Epoch']:
-	# 				eligible=0
-	# 				gatewayresult = ('FAILED-- %s_%s within refractory period'%(pkg['Market'], pkg['Strategy']))
-	# 	if len(self.openTradeList)>0:
-	# 		symboltotal=0
-	# 		opentotal=0
-	# 		for datum in self.openTradeList:
-	# 			if datum['Market'] == pkg['Market'] and datum['Strategy'] == pkg['Strategy']:
-	# 				symboltotal=symboltotal+datum['USD_Value']
-	# 			opentotal=opentotal+datum['USD_Value']
-	# 		if symboltotal >= tpkg['MaxPair']:
-	# 			eligible=0
-	# 			gatewayresult = ('FAILED-- Total open %s_%s trades (%.1f) exceeds restriction (%.1f)'%(pkg['Market'], pkg['Strategy'], symboltotal, tpkg['MaxPair']))
-	# 		if opentotal >= tpkg['MaxOpen']:
-	# 			eligible=0
-	# 			gatewayresult = ('FAILED-- Total open trades (%.1f) exceeds restriction (%.1f)'%(opentotal,tpkg['MaxOpen']))
-	# 	if pkg['Market'][-4:] != 'USDT':
-	# 		eligible=0
-	# 		gatewayresult=('FAILED-- Pair not USDT pair and not recognised by clipSize_USD calculator')
-	# 	if time.time() < self.tradeRateLimiter:
-	# 		eligible=0
-	# 		gatewayresult=('FAILED-- Trade Rate Limiter Exceeded')			 
-
-	# 	# NON-BITMEX SHORT REJECTION
-	# 	# if pkg['Side']=='sell' and pkg['Exchange']!='Bitmex':
-	# 	# 	eligible=0
-	# 	# 	gatewayresult=('FAILED-- %s does not support leveraged (short) orders\nTrade Details:\n%s'%(pkg['Exchange'],pkg))
-
-	# 	if eligible == 1:
-	# 		try:
-	# 			clipSize = (tpkg['usdClipSize']/pkg['Price'])
-	# 			if pkg['Side'] == 'buy':
-	# 				oType='market-buy'
-	# 				oType=oType+self.testSwitch
-	# 			elif pkg['Side'] == 'sell':
-	# 				oType='market-sell'
-	# 				oType=oType+self.testSwitch
-	# 				clipSize=clipSize*-1
-
-	# 			TC=TradeClient(exchange=pkg['Exchange'].lower(),
-	# 				market=languageHandler(output_lang="TradeModule", inputs=[pkg['Market']], input_lang=pkg['Exchange'])[0],
-	# 				clipSize=abs(clipSize),
-	# 				orderPrice=0.00000001,
-	# 				orderType=oType
-	# 				)
-	# 			self.tradesoccured=self.tradesoccured+1
-				
-				
-	# 			pkg.update({'clipSize':clipSize})
-	# 			pkg.update({'Exchange_UUID':TC.oid})
-	# 			pkg.update({'tPrice':TC.tPrice})
-	# 			pkg.update({'USD':(abs(float(pkg['Price'])*float(clipSize)))}) #TESTING LINE
-				
-	# 			#pkg.update({'USD':(abs(float(TC.tPrice)*float(clipSize)))})
-	# 			logfunction=sqlogger(pkg,confluenceRating,confluenceFactor)
-	# 			gatewayresult = ('SUCCESS-- Trade Sent (UUID: %s)'%(logfunction))
-	# 			self.tradeRateLimiter = time.time()+self.maxTradeRate
-	# 			self.refractoryList = refracFetch()
-	# 			self.dbModTime = os.path.getmtime(self.databasepath)
-	# 			self.log('Refractory_Periods updated')
-	# 			self.openTradeList=openTrades()
-
-
-	# 		except Exception as error_result:
-	# 			gatewayresult = ('FAILED attempt to send trade: %s'%(error_result))
-
-	# 	self.log('OpenTrade Gateway: %s'%(gatewayresult))
-	# 	print(self.tradesoccured)
-	# 	print(self.closedtradesoccured)
-
-
- 
 
 
 

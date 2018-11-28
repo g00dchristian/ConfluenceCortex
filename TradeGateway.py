@@ -14,6 +14,7 @@ from tradeModule import TradeClient
 def Close_Trades(openTrades, pkg):
 	limiter=pkg['Trade_Limiter']
 	logReturn=[]
+	sql_log = 0
 	tradestatus=0 #Has to be outside of the loop as we only need to know if a trade has occured 
 	if len(openTrades)>0:
 		for trade in openTrades:
@@ -45,7 +46,7 @@ def Close_Trades(openTrades, pkg):
 							orderPrice=0.00000001,
 							orderType=closeOtype
 							)
-						logCloseTrade(trade['UUID'],trade['Open_Time'],TC.tPrice,trade['OrderPrice'],trade['ClipSize'],TC.oid)
+						sql_log=['Close',(trade['UUID'],trade['Open_Time'],TC.tPrice,trade['OrderPrice'],trade['ClipSize'],TC.oid)]
 
 						trade.update({'Market':'Closed'})
 						trade.update({'ClipSize':0})
@@ -60,7 +61,7 @@ def Close_Trades(openTrades, pkg):
 					logReturn.append(closegatewayresult)
 
 
-	return {'Log':logReturn,'Trade_Status':tradestatus, 'Trade_Limiter':limiter}
+	return {'Log':logReturn,'Trade_Status':tradestatus, 'Trade_Limiter':limiter, 'SQL':sql_log}
 
 
 
@@ -69,6 +70,7 @@ def Open_Trade(refracList, openTrades, pkg, tpkg):
 	limiter=pkg['Trade_Limiter']
 	logReturn=[]
 	eligible=1
+	sql_log=0
 	tradestatus=0
 	if len(refracList)>0:
 		for datum in refracList:
@@ -124,8 +126,8 @@ def Open_Trade(refracList, openTrades, pkg, tpkg):
 			pkg.update({'USD':(abs(float(pkg['Price'])*float(clipSize)))}) #TESTING LINE
 			
 			#pkg.update({'USD':(abs(float(TC.tPrice)*float(clipSize)))})
-			logfunction=sqlogger(pkg,tpkg['CR'],tpkg['CF'])
-			gatewayresult = ('SUCCESS-- Trade Sent (UUID: %s)'%(logfunction))
+			sql_log=['Open',(pkg,tpkg['CR'],tpkg['CF'])]	
+			gatewayresult = ('SUCCESS-- Trade Sent (UUID: %s)'%('need log UUID in the cortex'))
 
 			limiter = time.time()+pkg['Limiter_Rate']
 			tradestatus=1
@@ -135,6 +137,7 @@ def Open_Trade(refracList, openTrades, pkg, tpkg):
 
 
 	logReturn.append(gatewayresult)
-	return {'Log':logReturn,'Trade_Status':tradestatus, 'Trade_Limiter':limiter}
+	print('tradestatus',tradestatus)
+	return {'Log':logReturn,'Trade_Status':tradestatus, 'Trade_Limiter':limiter, 'SQL':sql_log}
 	
 

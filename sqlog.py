@@ -4,6 +4,7 @@ import time
 import sqlite3
 
 def sqlogger(pkg,CR,CF):
+	print('LOGGER HAS BEEN SENT DATA')
 	tradeID = str(uuid4())
 	tradeIDstring = '`'+tradeID+'`'
 	conn = sqlite3.connect('tradelog.db')
