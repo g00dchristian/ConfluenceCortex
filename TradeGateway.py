@@ -1,5 +1,5 @@
 import time
-from sqlog import logCloseTrade
+from sqlog import logCloseTrade_CR
 from sqlog import sqlogger
 from bnWebsocket.languageHandled import languageHandler
 from tradeModule import TradeClient

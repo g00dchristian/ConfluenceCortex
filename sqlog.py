@@ -10,7 +10,7 @@ def sqlogger(pkg,CR,CF):
 	conn = sqlite3.connect('tradelog.db')
 	c = conn.cursor()
 	#-- ENTER TRADE_LIST VALUES -------------------------------------------------------------
-	c.execute("INSERT INTO Trade_List(UUID,Time,Symbol,Status,Clip_Size,Strategy,USD_Value,Exchange,Version) VALUES(:UUID,:Time,:Symbol,:Status,:Clip_Size,:Strategy,:USD_Value,:Exchange,:Version)",
+	c.execute("INSERT INTO Trade_List(UUID,Time,Symbol,Status,Clip_Size,Strategy,USD_Value,Exchange,Version,Profit_Take,Stop_Loss) VALUES(:UUID,:Time,:Symbol,:Status,:Clip_Size,:Strategy,:USD_Value,:Exchange,:Version,:Profit_Take,:Stop_Loss)",
 			{
 			'UUID':tradeID,
             'Time':datetime.now(),
@@ -20,15 +20,19 @@ def sqlogger(pkg,CR,CF):
             'Strategy':pkg['Strategy'],
             'USD_Value':pkg['USD'],
             'Exchange':pkg['Exchange'],
-            'Version':pkg['Version']
+            'Version':pkg['Version'],
+            'Profit_Take':pkg['Profit_Take'],
+            'Stop_Loss':pkg['Stop_Loss']
             })
 	conn.commit()
 
 	#-- ENTER TRADE_RESULT VALUES -------------------------------------------------------------
-	c.execute("INSERT INTO Trade_Results(UUID,OrderPrice) VALUES(:UUID,:OrderPrice)",
+	c.execute("INSERT INTO Trade_Results(UUID,OrderPrice,Profit_Level,Stop_Level) VALUES(:UUID,:OrderPrice,:Profit_Level,:Stop_Level)",
 			{
 			'UUID':tradeID,
-			'OrderPrice':pkg['tPrice']
+			'OrderPrice':pkg['tPrice'],
+			'Profit_Level':pkg['Profit_Level'],
+			'Stop_Level':pkg['Stop_Level']
 			# 'ClosePrice':,
 			# 'Return':,
 			# 'PnL':
@@ -85,7 +89,7 @@ def sqlogger(pkg,CR,CF):
 	return tradeID
 
 
-def logCloseTrade(uuid, opentime, closeprice, openprice, clipSize, oid):
+def logCloseTrade_CR(uuid, opentime, closeprice, openprice, clipSize, oid):
 	conn = sqlite3.connect('tradelog.db')
 	open_time=datetime.strptime(opentime,'%Y-%m-%d %H:%M:%S.%f').timestamp()
 	print
@@ -109,7 +113,7 @@ def logCloseTrade(uuid, opentime, closeprice, openprice, clipSize, oid):
 	now = datetime.now()
 
 	#Update Trade_List Status
-	c.execute("UPDATE Trade_Results set ClosePrice=?, Return=?, PnL=?, Trade_Duration=? WHERE UUID=?",(closeprice,returnValue,pnl,open_time-now.timestamp(),uuid))
+	c.execute("UPDATE Trade_Results set ClosePrice=?, Return=?, PnL=?, Trade_Duration=?, Close_Method=? WHERE UUID=?",(closeprice,returnValue,pnl,open_time-now.timestamp(),'CR',uuid))
 	conn.commit()
 
 

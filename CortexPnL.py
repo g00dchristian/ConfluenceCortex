@@ -20,7 +20,7 @@ class PnL(object):
 
 	def fetchTrades(self, report_type):
 		"""Fetch all trades from database"""
-		conn = sqlite3.connect('tradelog.db')
+		conn = sqlite3.connect(r'C:\Users\Christian\Google Drive\PyScripts\ConfluenceCortex\tradelog.db')
 		c = conn.cursor()
 		trades = []
 		SQL='''SELECT TL.UUID, TL.Time ,TL.Status, TL.Strategy, TL.Symbol, TR.Return, TL.USD_Value

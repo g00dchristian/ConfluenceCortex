@@ -27,7 +27,7 @@ from mathByChristian import *
 from sqlog import openTrades
 from sqlog import sqlogger
 from sqlog import refracFetch
-from sqlog import logCloseTrade
+from sqlog import logCloseTrade_CR
 from marketSentiment import Market_Sentiment
 from xlog import xlog
 from TradeGateway import Close_Trades
@@ -69,7 +69,7 @@ class SQL_Thread(threading.Thread):
     			self.queue.task_done()
 
     		if data[0]=='Close':
-    			logCloseTrade(*data[1])
+    			logCloseTrade_CR(*data[1])
     			self.queue.task_done()
 
     		if data[0]=='refracFetch':
@@ -97,7 +97,7 @@ class Confluence_Cortex():
 
 		self.log('loaded')
 		#self.TimeFrame=sys.argv[1]
-		self.cortex_version=3.10
+		self.cortex_version=3.11
 		self.exchange=exchange
 		self.TimeFrame=TimeFrame
 		self.sc=SlackClient(keychain.slack.TradeAlertApp('BotUser'))
@@ -119,6 +119,9 @@ class Confluence_Cortex():
 		self.threads['SQLT'].start()
 
 		#-- EXTRINSIC --------------------------------------------------------------- 
+		self.Profit_Take=0.02
+		self.Stop_Loss=0.01
+
 		self.data = {}
 		self.startup = 1 
 		self.trades = {}
@@ -275,8 +278,9 @@ class Confluence_Cortex():
 
 		self.Cortex(Market_Conditions, market)
 
+
 	def Cortex(self, MC, market):
-		CR = -200 #Confluence Rating
+		CR = 200 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
 		#-- MARKET SENTIMENT -------------------------------------------------------
@@ -317,6 +321,7 @@ class Confluence_Cortex():
 		#-- FEAR & GREED -----------------------------------------------------------
 		print(market)
 
+
 		#-- INFO PACKAGE ---------------------------------------------------------------
 		pkg = {
 		'Market':market,
@@ -330,8 +335,9 @@ class Confluence_Cortex():
 		'Testing':self.testSwitch,
 		'Trade_Limiter':self.tradeRateLimiter,
 		'Limiter_Rate':self.maxTradeRate,
-		'Version':self.cortex_version
-
+		'Version':self.cortex_version,
+		'Profit_Take':self.Profit_Take,
+		'Stop_Loss':self.Stop_Loss
 		}
 
 		#-- TRADE SIZE --------------------------------------------------
@@ -386,9 +392,13 @@ class Confluence_Cortex():
 		#-- OPEN TRADE ---------------------------------------------------------------
 		if CR <= -100:
 			pkg.update({'Side':'sell'})
+			pkg.update({'Profit_Level':(1-self.Profit_Take)*MC['Last_Price']})
+			pkg.update({'Stop_Level':(1+self.Stop_Loss)*MC['Last_Price']})
 
 		elif CR >= 100:
 			pkg.update({'Side':'buy'})
+			pkg.update({'Profit_Level':(1+self.Profit_Take)*MC['Last_Price']})
+			pkg.update({'Stop_Level':(1-self.Stop_Loss)*MC['Last_Price']})
 			
 		if 'Side' in pkg:
 			OT=Open_Trade(self.refractoryList, self.openTradeList, pkg, tradepkg)
@@ -400,7 +410,7 @@ class Confluence_Cortex():
 				print('Adding open trade to SQL queue')
 				self.threads['SQLT'].queue.put(OT['SQL'])
 
-
+ 
 			if OT['Trade_Status'] == 1:
 				self.tradeRateLimiter = OT['Trade_Limiter']
 				### Refractory Periods
