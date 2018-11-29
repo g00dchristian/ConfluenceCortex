@@ -89,7 +89,7 @@ def sqlogger(pkg,CR,CF):
 	return tradeID
 
 
-def logCloseTrade_CR(uuid, opentime, closeprice, openprice, clipSize, oid):
+def logCloseTrade(uuid, opentime, closeprice, openprice, clipSize, oid, closeMethod):
 	conn = sqlite3.connect('tradelog.db')
 	open_time=datetime.strptime(opentime,'%Y-%m-%d %H:%M:%S.%f').timestamp()
 	print
@@ -113,7 +113,7 @@ def logCloseTrade_CR(uuid, opentime, closeprice, openprice, clipSize, oid):
 	now = datetime.now()
 
 	#Update Trade_List Status
-	c.execute("UPDATE Trade_Results set ClosePrice=?, Return=?, PnL=?, Trade_Duration=?, Close_Method=? WHERE UUID=?",(closeprice,returnValue,pnl,open_time-now.timestamp(),'CR',uuid))
+	c.execute("UPDATE Trade_Results set ClosePrice=?, Return=?, PnL=?, Trade_Duration=?, Close_Method=? WHERE UUID=?",(closeprice,returnValue,pnl,open_time-now.timestamp(),closeMethod,uuid))
 	conn.commit()
 
 
@@ -140,7 +140,7 @@ def openTrades():
 	conn = sqlite3.connect('tradelog.db')
 	c = conn.cursor()
 	trades = []
-	SQL='''SELECT Trade_List.UUID, Trade_List.SYMBOL, Trade_List.STRATEGY, Trade_Results.OrderPrice, Trade_List.USD_VALUE, Trade_List.Clip_Size, Trade_List.Time FROM Trade_List
+	SQL='''SELECT Trade_List.UUID, Trade_List.SYMBOL, Trade_List.STRATEGY, Trade_Results.OrderPrice, Trade_List.USD_VALUE, Trade_List.Clip_Size, Trade_List.Time, Trade_Results.Stop_Level, Trade_Results.Profit_Level FROM Trade_List
 		INNER JOIN Trade_Results
 		ON Trade_List.UUID=Trade_Results.UUID
 		WHERE Trade_List.Status = "Open"'''
@@ -154,6 +154,8 @@ def openTrades():
 		trade.update({'USD_Value':entry[4]})
 		trade.update({'ClipSize':entry[5]})
 		trade.update({'Open_Time':entry[6]})
+		trade.update({'Stop_Level':entry[7]})
+		trade.update({'Profit_Level':entry[8]})
 		trades.append(trade)
 	conn.commit()
 	conn.close()

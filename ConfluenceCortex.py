@@ -27,7 +27,7 @@ from mathByChristian import *
 from sqlog import openTrades
 from sqlog import sqlogger
 from sqlog import refracFetch
-from sqlog import logCloseTrade_CR
+from sqlog import logCloseTrade
 from marketSentiment import Market_Sentiment
 from xlog import xlog
 from TradeGateway import Close_Trades
@@ -69,7 +69,7 @@ class SQL_Thread(threading.Thread):
     			self.queue.task_done()
 
     		if data[0]=='Close':
-    			logCloseTrade_CR(*data[1])
+    			logCloseTrade(*data[1])
     			self.queue.task_done()
 
     		if data[0]=='refracFetch':
@@ -97,7 +97,7 @@ class Confluence_Cortex():
 
 		self.log('loaded')
 		#self.TimeFrame=sys.argv[1]
-		self.cortex_version=3.11
+		self.cortex_version=3.2
 		self.exchange=exchange
 		self.TimeFrame=TimeFrame
 		self.sc=SlackClient(keychain.slack.TradeAlertApp('BotUser'))
@@ -280,7 +280,7 @@ class Confluence_Cortex():
 
 
 	def Cortex(self, MC, market):
-		CR = 200 #Confluence Rating
+		CR = 0 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
 		#-- MARKET SENTIMENT -------------------------------------------------------
@@ -376,7 +376,8 @@ class Confluence_Cortex():
 			self.threads['SQLT'].queue.join()
 			self.refractoryList=getattr(self.threads['SQLT'],temp_uuid_2)
 
-			self.tradeRateLimiter = CT['Trade_Limiter'] 
+			self.tradeRateLimiter = CT['Trade_Limiter']     
+
 			self.dbModTime = os.path.getmtime(self.databasepath)
 
 			### Open Trade List

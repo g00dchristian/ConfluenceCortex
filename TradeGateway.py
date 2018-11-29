@@ -1,5 +1,5 @@
 import time
-from sqlog import logCloseTrade_CR
+from sqlog import logCloseTrade
 from sqlog import sqlogger
 from bnWebsocket.languageHandled import languageHandler
 from tradeModule import TradeClient
@@ -27,12 +27,37 @@ def Close_Trades(openTrades, pkg):
 					closeOtype='market-sell'
 					closeOtype=closeOtype+pkg['Testing']
 					closeQuery=1
+					closeMethod='CR'
 
 				if pkg['CR'] >-50 and trade['ClipSize']<0:
 					closeOtype='market-buy'
 					closeOtype=closeOtype+pkg['Testing']
 					closeQuery=1
+					closeMethod='CR'
 
+				if pkg['Price'] <= trade['Stop_Level'] and trade['ClipSize']>0:
+					closeOtype='market-sell'
+					closeOtype=closeOtype+pkg['Testing']
+					closeQuery=1
+					closeMethod='Stop_Loss'
+
+				if pkg['Price'] >= trade['Stop_Level'] and trade['ClipSize']<0:
+					closeOtype='market-buy'
+					closeOtype=closeOtype+pkg['Testing']
+					closeQuery=1
+					closeMethod='Stop_Loss'
+
+				if pkg['Price'] >= trade['Profit_Level'] and trade['ClipSize']>0:
+					closeOtype='market-sell'
+					closeOtype=closeOtype+pkg['Testing']
+					closeQuery=1
+					closeMethod='Profit_Take'
+
+				if pkg['Price'] <= trade['Profit_Level'] and trade['ClipSize']<0:
+					closeOtype='market-buy'
+					closeOtype=closeOtype+pkg['Testing']
+					closeQuery=1
+					closeMethod='Profit_Take'
 				
 				if time.time() < limiter:
 					closeQuery=0
@@ -46,7 +71,7 @@ def Close_Trades(openTrades, pkg):
 							orderPrice=0.00000001,
 							orderType=closeOtype
 							)
-						sql_log=['Close',(trade['UUID'],trade['Open_Time'],TC.tPrice,trade['OrderPrice'],trade['ClipSize'],TC.oid)]
+						sql_log=['Close',(trade['UUID'],trade['Open_Time'],TC.tPrice,trade['OrderPrice'],trade['ClipSize'],TC.oid,closeMethod)]
 
 						trade.update({'Market':'Closed'})
 						trade.update({'ClipSize':0})
@@ -127,7 +152,7 @@ def Open_Trade(refracList, openTrades, pkg, tpkg):
 			
 			#pkg.update({'USD':(abs(float(TC.tPrice)*float(clipSize)))})
 			sql_log=['Open',(pkg,tpkg['CR'],tpkg['CF'])]	
-			gatewayresult = ('SUCCESS-- Trade Sent (UUID: %s)'%('need log UUID in the cortex'))
+			gatewayresult = ('SUCCESS-- Trade Sent (Trade OID: %s)'%(TC.oid)) 
 
 			limiter = time.time()+pkg['Limiter_Rate']
 			tradestatus=1
