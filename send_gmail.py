@@ -13,6 +13,8 @@ from email.mime.audio import MIMEAudio
 from email.mime.image import MIMEImage
 from email.mime.base import MIMEBase
 
+from email import encoders
+
 from email.mime.multipart import MIMEMultipart
 import mimetypes
 
@@ -71,6 +73,29 @@ class send_email:
     message.attach(msg)
 
     return {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
+
+  def create_message_with_excel_attachment(self, sender, to, subject, message_text, file):
+    message = MIMEMultipart()
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+
+    msg = MIMEText(message_text)
+    message.attach(msg)
+
+    part = MIMEBase('application', "vnd.ms-excel")
+    part.set_payload(open(file, "rb").read())
+    encoders.encode_base64(part)
+    part.add_header('Content-Disposition', 'attachment', filename=file)
+    message.attach(part)
+
+    content_type, encoding = mimetypes.guess_type(file)
+
+    raw = base64.urlsafe_b64encode(message.as_bytes())
+    raw = raw.decode()
+    return {'raw': raw}
+
+
 
   def send_message(self, user_id, message):
     """Send an email message.

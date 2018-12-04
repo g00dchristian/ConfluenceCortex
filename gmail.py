@@ -14,6 +14,8 @@ try:
 except ImportError:
 	flags = None
 
+import send_gmail
+from datetime import datetime
 
 def get_labels():
 	results = service.users().labels().list(userId='me').execute()
@@ -27,6 +29,11 @@ def get_labels():
 			print(label['name'])
 
 
+from CortexPnL import PnL
+
+PnL('Daily') 
+
+
 SCOPES = 'https://mail.google.com'
 CLIENT_SECRET_FILE = 'credentials.json'
 APPLICATION_NAME = 'Python'
@@ -37,8 +44,9 @@ credentials = authInst.get_credentials()
 http= credentials. authorize(httplib2.Http())
 service = discovery.build('gmail','v1', http=http)
 
-import send_gmail
 
+recipients='blight@atlantictrading.co.uk; ren@atlantictrading.co.uk; sutton@atlantictrading.co.uk; abhayaratna@atlantictrading.co.uk'
+# recipients='abhayaratna@atlantictrading.co.uk'
 sendInst = send_gmail.send_email(service)
-message = sendInst.create_message_with_attachment('rp.cryptotrading@gmail.com', 'chrisabh@gmail.com', 'Testing 123', 'Hi there, this is a test from Python', 'cup.jpg')
+message = sendInst.create_message_with_excel_attachment('rp.cryptotrading@gmail.com', recipients, f'Cortex Report: {datetime.today().strftime("%Y-%m-%d")}', 'Cortex Report attached', f'{datetime.today().strftime("%Y-%m-%d")} Cortex PnL.xlsx')
 sendInst.send_message('me', message)

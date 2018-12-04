@@ -203,6 +203,7 @@ class Confluence_Cortex():
 	
 
 	def WebSocketFunction(self,kline):
+		print(kline)
 		if self.startup == 1:
 			time.sleep(4)
 		else:
