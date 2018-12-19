@@ -106,7 +106,7 @@ class Confluence_Cortex():
 
 		
 		#-- TESTING --------------------------------------------------------------- 
-		testing = 1
+		testing = 0
 		if testing == 1:
 			self.testSwitch='-test'
 			self.log('###----------- TESTING MODE -----------###')
@@ -152,7 +152,7 @@ class Confluence_Cortex():
 		#ticker_fetch=getattr(ccxt,exchange)().fetch_tickers()
 
 		####### Acceptable Markets for supported exchanges ###########################
-		binance_markets=['BTC/USDT', 'ETH/USDT', 'NEO/USDT', 'ADA/USDT', 'XRP/USDT']
+		binance_markets=['BTC/USDT','ETH/USDT', 'NEO/USDT', 'ADA/USDT', 'XRP/USDT']
 		bitmex_markets=['BTC/USD']
 		bitmex_timeframes=['1m','1d','1h']
 		##############################################################################
@@ -413,7 +413,7 @@ class Confluence_Cortex():
 
 
 	def Cortex(self, MC, market):
-		CR = 1000 #Confluence Rating
+		CR = 0 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
 		#-- MARKET SENTIMENT -------------------------------------------------------
@@ -593,16 +593,16 @@ class Confluence_Cortex():
 #####################################################################################################################################
 
 
-bn = 'binance'
-bx = 'bitmex'
-################################
-exchange=      bn   #<-----------------------------
-################################
+# bn = 'binance'
+# bx = 'bitmex'
+# ################################
+# exchange=      bn   #<-----------------------------
+# ################################
 
-if exchange == 'binance':
-	tickers = ['BTC/USDT']
-elif exchange == 'bitmex':
-	tickers = ['BTC/USD']
+# if exchange == 'binance':
+# 	tickers = ['BTC/USDT']
+# elif exchange == 'bitmex':
+# 	tickers = ['BTC/USD']
 
 
-Confluence_Cortex(exchange = exchange, logFileName='Confluence.log', TimeFrame='1h', ticker_fetch=tickers)
+# Confluence_Cortex(exchange = exchange, logFileName='Confluence.log', TimeFrame='1h', ticker_fetch=tickers)
