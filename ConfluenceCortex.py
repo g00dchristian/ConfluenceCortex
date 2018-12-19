@@ -37,6 +37,7 @@ from TradeGateway import Open_Trade
 from bnWebsocket.klines import bnStream
 from bnWebsocket.languageHandled import languageHandler
 from bnWebsocket import keychain
+from bxWebsocket.interface import *
 
 
 ### DataFram View Options
@@ -82,7 +83,7 @@ class SQL_Thread(threading.Thread):
 
 
 class Confluence_Cortex():
-	def __init__(self, exchange, logFileName, TimeFrame):
+	def __init__(self, exchange, logFileName, TimeFrame, ticker_fetch):
 		#-- INTRINSIC --------------------------------------------------------------- 
 		localpath = os.getcwd()+'//'
 
@@ -105,7 +106,7 @@ class Confluence_Cortex():
 
 		
 		#-- TESTING --------------------------------------------------------------- 
-		testing = 1
+		testing = 0
 		if testing == 1:
 			self.testSwitch='-test'
 			self.log('###----------- TESTING MODE -----------###')
@@ -121,7 +122,7 @@ class Confluence_Cortex():
 		#-- EXTRINSIC --------------------------------------------------------------- 
 		self.Profit_Take=0.02
 		self.Stop_Loss=0.01
-
+		self.ccxt_data=0
 		self.data = {}
 		self.startup = 1 
 		self.trades = {}
@@ -149,39 +150,159 @@ class Confluence_Cortex():
 
 		#-- MARKET MANAGEMENT --------------------------------------------------------------- 
 		#ticker_fetch=getattr(ccxt,exchange)().fetch_tickers()
-		ticker_fetch = ['BTC/USDT']
-		#ticker_fetch = ['BTC/USDT', 'ETH/USDT', 'NEO/USDT', 'ADA/USDT', 'XRP/USDT']
+
+		####### Acceptable Markets for supported exchanges ###########################
+		binance_markets=['BTC/USDT', 'ETH/USDT', 'NEO/USDT', 'ADA/USDT', 'XRP/USDT']
+		bitmex_markets=['BTC/USD']
+		bitmex_timeframes=['1m','1d','1h']
+		##############################################################################
+
+
 		self.market_jar=[]
-		for market in ticker_fetch:
-			if market[-3:] != 'USD':
-				self.market_jar.append(market)
-				toParse = [market]
-				parsedMarket = languageHandler(output_lang = exchange.capitalize(),inputs = toParse,input_lang = "TradeModule")
-				setattr(self, parsedMarket[0], {})
-				#self.data.update({parsedMarket[0]:None})
-				MSname = parsedMarket[0]+'_MS'
-				setattr(self, MSname, 'Unknown')
-				#print(market)
-		
+
+
+		if exchange == 'binance':
+			print('Entered binance loop')
+			impass = 0
+			for market in ticker_fetch:
+				if market not in binance_markets:
+					self.log(f'{market} -NOT SUPPORTED BY- {exchange}')					
+					impass=1
+			if impass == 0:
+				for market in ticker_fetch:
+					if market[-3:] != 'USD':
+						self.market_jar.append(market)
+						toParse = [market]
+						parsedMarket = languageHandler(output_lang = exchange.capitalize(),inputs = toParse,input_lang = "TradeModule")
+						setattr(self, parsedMarket[0], {})
+						#self.data.update({parsedMarket[0]:None})
+						MSname = parsedMarket[0]+'_MS'
+						setattr(self, MSname, 'Unknown')
+						#print(market)
+
+
+				callbacks=[self.WebSocketFunction]
+				bnStream(self.market_jar, self.TimeFrame, callbacks)
+				self.FetchPast(exchange)
+
+
+
+
+		elif exchange == 'bitmex':
+			impass=0
+			for market in ticker_fetch:
+				if market not in bitmex_markets:
+					self.log(f'{market} -NOT SUPPORTED BY- {exchange}')
+					impass=1
+			if len(ticker_fetch)>1:
+				self.log('Bitmex function can only support one market')
+				impass=1
+			if self.TimeFrame not in bitmex_timeframes:
+				self.log(f'\n\nTimeFrame not supported yet-- supported timeframes: {bitmex_timeframes}\n\n')
+				impass=1
+			if impass==0:
+				self.market_jar=ticker_fetch
+				try:
+					self.FetchPast(exchange)
+				except Exception as e:
+					self.log(f'FetchPast Failed-- {e}')
+					impass=1
+			if impass == 0:
+				print('Start WebSocketFunction')
+				bmi=bitmex_interface(market=ticker_fetch[0], tf=self.TimeFrame, funk=self.WebSocketFunction)
+				bmi.start()
+
+		else:
+			print('')
+			self.log('-- EXCHANGE NOT SUPPORTED --')
+			
 
 
 		#-- WEBSOCKET ---------------------------------------------------------------
-		callbacks=[self.WebSocketFunction]
-		bnStream(self.market_jar, self.TimeFrame, callbacks)
-		
 
-		self.FetchPast(exchange)
+
+
 
 
 	def FetchPast(self, exchange):
 		for market in self.market_jar:
+			temp_p=self.p
+			temp_tf=self.TimeFrame
 			self.trades.update({market:[]})
 			name = market+'_past'
-			setattr(self, name, getattr(ccxt,exchange)().fetch_ohlcv(market, timeframe=self.TimeFrame)[-self.p:])
+			if exchange == 'binance':
+				setattr(self, name, getattr(ccxt,exchange)().fetch_ohlcv(market, timeframe=self.TimeFrame)[-self.p:])
+			
+			elif exchange == 'bitmex':
+				merger=int(self.TimeFrame[:-1])
+				# temp_p=temp_p-merger
+				print('entered')
+				if self.TimeFrame[-1:] == 'm':
+					temp_sec=int(self.TimeFrame[:-1])*60
+				if self.TimeFrame[-1:] == 'h':
+					merger=int(self.TimeFrame[:-1])
+					temp_sec=int(self.TimeFrame[:-1])*60*60
+					if int(self.TimeFrame[:-1]) != 1:
+						temp_sec=temp_sec/int(self.TimeFrame[:-1])
+						temp_p=self.p*int(self.TimeFrame[:-1])
+						temp_tf='1h'
+				if self.TimeFrame[-1:] == 'd':
+					merger=int(self.TimeFrame[:-1])
+					temp_sec=int(self.TimeFrame[:-1])*60*60*24
+				fetch_tray=[]
+				iteros=int(temp_p/99)+1
+				current_candle_start = int(time.time()/temp_sec)*temp_sec
+				since = (current_candle_start-(temp_sec*temp_p))*1000
+				print(f'Timeframe: {temp_tf} - Periods: {temp_p} - Since: {since} - Current: {current_candle_start} - Temp_Sec: {temp_sec}')
+				for x in range(iteros):
+					fetch_tray.extend(getattr(ccxt,exchange)().fetch_ohlcv(market, timeframe=temp_tf, since=since))
+					since=since+(temp_sec*99*1000)
+					print(f'{x}/{iteros}')
+				
+				if merger != 1:
+					print('MERGER', merger)
+					count=merger
+					real_tray=[]
+					candle=[0,0,0,0,0,0]
+					for kline in fetch_tray:
+						if count==merger:
+							candle[0]=kline[0]
+							candle[1]=kline[1]
+							candle[2]=kline[2]
+							candle[3]=kline[3]
+							candle[4]=kline[4]
+							candle[5]=kline[5]
+							count=count-1
+						elif count<merger and count>1:
+							if kline[2]>candle[2]:
+								candle[2]=kline[2]
+							if kline[3]<candle[3]:
+								candle[3]=kline[3]
+							candle[4]=kline[4]
+							candle[5]=candle[5]+kline[5]
+							count=count-1
+						elif count == 1:
+							if kline[2]>candle[2]:
+								candle[2]=kline[2]
+							if kline[3]<candle[3]:
+								candle[3]=kline[3]
+							candle[4]=kline[4]
+							candle[5]=candle[5]+kline[5]
+							real_tray.append(candle)
+							count=merger
+				else:
+					real_tray=fetch_tray
+
+				setattr(self, name, real_tray[1:])
+
+
+
+
 			dfName = market+'_df'
 			setattr(self, dfName, [])
 			cf = market+'_cf' #Confluence Factor
 			setattr(self, cf, 0)
+
 
 			x=self.p
 			for candle in getattr(self,name):
@@ -202,12 +323,18 @@ class Confluence_Cortex():
 		self.startup=0
 	
 
+
+
+
 	def WebSocketFunction(self,kline):
-		print(kline)
+		# print(kline)
 		if self.startup == 1:
 			time.sleep(4)
 		else:
-			dfName = languageHandler(output_lang="TradeModule", inputs=[kline.market], input_lang=kline.exchange)[0]+'_df'
+			if self.exchange=='binance':
+				dfName = languageHandler(output_lang="TradeModule", inputs=[kline.market], input_lang=kline.exchange)[0]+'_df'
+			elif self.exchange =='bitmex':
+				dfName = 'BTC/USD_df'
 			candleData = {
 			'Time':int(kline.openTime),
 			'Low':kline.kLow,
@@ -230,15 +357,20 @@ class Confluence_Cortex():
 					y=y-1
 			df=pd.DataFrame(getattr(self,dfName))
 			df = df.set_index('Period')
+			if self.exchange=='bitmex' and kline.ccxt_data==1:
+					self.ccxt_data=1
+			else:
+				self.ccxt_data=0
 			
 			#-- CONFLUENCE SETTINGS UPDATE ---------------------------------------------------------------
 			confSet=os.path.getmtime(self.confSetPath)
 			if confSet != self.confSetMod:
 				self.confSet=pd.read_excel(self.confSetPath,index_col=0)
 				self.confSetMod=os.path.getmtime(self.confSetPath)
-				self.log('\nConfluence Settings Updated: \n%s'%(self.confSet))			
-			
+				self.log('\nConfluence Settings Updated: \n%s'%(self.confSet))	
+			# print(df)		
 			self.Conditions(df=df, market=kline.market)
+
 
 
 	def Conditions(self, df, market):
@@ -281,7 +413,7 @@ class Confluence_Cortex():
 
 
 	def Cortex(self, MC, market):
-		CR = 0 #Confluence Rating
+		CR = -1000 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
 		#-- MARKET SENTIMENT -------------------------------------------------------
@@ -296,17 +428,23 @@ class Confluence_Cortex():
 		if self.TimeFrame != '1d':
 			confluenceFactor.update({'PriceShear':MC['Price_Shear']})
 			confluenceRating.update({'PriceShear':self.confSet.loc[MC['Price_Shear'],'PriceShear']})
+			CR = CR + confluenceRating['PriceShear']
 		#-- GENERIC VOLUME ----------------------------------------------------------
-		VA_Flipper=-1
-		if MC['Volume']['Type'] == 'Bull':
-			confluenceRating.update({'GenVolume':self.confSet.loc[MC['Volume']['Accel/Decel'],'Generic Volume']})
-			CR = CR + confluenceRating['GenVolume']
-		elif MC['Volume']['Type'] == 'Bear':
-			confluenceRating.update({'GenVolume':self.confSet.loc[MC['Volume']['Accel/Decel'],'Generic Volume']*VA_Flipper})
-			CR = CR + confluenceRating['GenVolume']
-		else: 
-			confluenceRating.update({'GenVolume':'ERROR'})
-			print('Generic Volume Error')
+		if self.ccxt_data==0:	
+			VA_Flipper=-1
+			if MC['Volume']['Type'] == 'Bull':
+				confluenceRating.update({'GenVolume':self.confSet.loc[MC['Volume']['Accel/Decel'],'Generic Volume']})
+				CR = CR + confluenceRating['GenVolume']
+			elif MC['Volume']['Type'] == 'Bear':
+				confluenceRating.update({'GenVolume':self.confSet.loc[MC['Volume']['Accel/Decel'],'Generic Volume']*VA_Flipper})
+				CR = CR + confluenceRating['GenVolume']
+			else: 
+				confluenceRating.update({'GenVolume':'ERROR'})
+				print('Generic Volume Error')
+		else:
+			confluenceRating.update({'GenVolume':0})
+			confluenceFactor.update({'GenVolume':'N/A-- ccxt_data'})
+		#-- RSI -------------------------------------------------------------		
 		confluenceFactor.update({'GenVolume':(str(MC['Volume']['Accel/Decel'])+'_'+str(MC['Volume']['Type']))})
 		confluenceFactor.update({'RSI':MC['RSI']})
 		confluenceRating.update({'RSI':self.confSet.loc[round_Down(MC['RSI'],10),'RSI']})
@@ -316,9 +454,13 @@ class Confluence_Cortex():
 		confluenceRating.update({'IB':MC['Inside_Bar']['ConsecIB']*self.confSet.loc[MC['Inside_Bar']['Status'],'IB']})	
 		CR = CR + confluenceRating['IB']
 		#-- ABNORMAL VOLUME --------------------------------------------------------
-		confluenceFactor.update({'AbnorVol':MC['Abnormal_Volume']['Result']})
-		confluenceRating.update({'AbnorVol':self.confSet.loc[MC['Abnormal_Volume']['Result'],'AbnorVol']})
-		CR = CR + confluenceRating['AbnorVol']
+		if self.ccxt_data==0:	
+			confluenceFactor.update({'AbnorVol':MC['Abnormal_Volume']['Result']})
+			confluenceRating.update({'AbnorVol':self.confSet.loc[MC['Abnormal_Volume']['Result'],'AbnorVol']})
+			CR = CR + confluenceRating['AbnorVol']
+		else:
+			confluenceRating.update({'AbnorVol':0})
+			confluenceFactor.update({'AbnorVol':'N/A-- ccxt_data'})
 		#-- FEAR & GREED -----------------------------------------------------------
 		print(market)
 
@@ -444,4 +586,23 @@ class Confluence_Cortex():
 
 
 
-Confluence_Cortex(exchange = 'binance', logFileName='Confluence.log', TimeFrame='15m')
+
+
+#####################################################################################################################################
+##################################################----- RUN -----####################################################################
+#####################################################################################################################################
+
+
+bn = 'binance'
+bx = 'bitmex'
+################################
+exchange=      bx   #<-----------------------------
+################################
+
+if exchange == 'binance':
+	tickers = ['BTC/USDT']
+elif exchange == 'bitmex':
+	tickers = ['BTC/USD']
+
+
+Confluence_Cortex(exchange = exchange, logFileName='Confluence.log', TimeFrame='1h', ticker_fetch=tickers)

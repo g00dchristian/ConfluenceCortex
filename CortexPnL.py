@@ -7,7 +7,7 @@ import ccxt
 import pandas as pd
 from languageHandled import languageHandler
 from accountValue import Account_Balance
-
+                                                                                                                           
 class PnL(object):
 	"""docstring for PnL"""
 	def __init__(self, report_type):
@@ -30,6 +30,9 @@ class PnL(object):
 		day_epoch = ((int(time.time()/86400)-1)*86400)+21600 #1 day ago at 4pm (5pm during DST)
 		self.day = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(day_epoch))
 		print(self.day)
+
+		self.openTrades=[]
+
 
 		self.all = "2018-11-12 17:00:00"
 		self.date=day
@@ -82,20 +85,31 @@ class PnL(object):
 			on CR.UUID = TR.UUID'''
 		c.execute(SQL)
 		for entry in c.fetchall():
-			trade={}
-			trade.update({'UUID':entry[0]})
-			trade.update({'Time':datetime.strptime(entry[1],'%Y-%m-%d %H:%M:%S.%f')})
-			trade.update({'Close_Time':datetime.strptime(entry[2],'%Y-%m-%d %H:%M:%S.%f')})  
-			trade.update({'Status':entry[3]})
-			trade.update({'Strategy':entry[4]})
-			trade.update({'Symbol':entry[5]})
-			trade.update({'Return':entry[6]})
-			trade.update({'USD':entry[7]})
-			trade.update({'Clip_Size':entry[8]})
-			trade.update({'Profit_Take':entry[9]})
-			trade.update({'Stop_Loss':entry[10]})
-			trade.update({'Order_Price':entry[11]})
-			trades.append(trade)
+			if entry[3]!='Open':
+				trade={}
+				trade.update({'UUID':entry[0]})
+				trade.update({'Time':datetime.strptime(entry[1],'%Y-%m-%d %H:%M:%S.%f')})
+				trade.update({'Close_Time':datetime.strptime(entry[2],'%Y-%m-%d %H:%M:%S.%f')})  
+				trade.update({'Status':entry[3]})
+				trade.update({'Strategy':entry[4]})
+				trade.update({'Symbol':entry[5]})
+				trade.update({'Return':entry[6]})
+				trade.update({'USD':entry[7]})
+				trade.update({'Clip_Size':entry[8]})
+				trade.update({'Profit_Take':entry[9]})
+				trade.update({'Stop_Loss':entry[10]})
+				trade.update({'Order_Price':entry[11]})
+				trades.append(trade)
+			else:
+				trade={}
+				trade.update({'Symbol':entry[5]})
+				trade.update({'USD':entry[7]})
+				trade.update({'Clip_Size':entry[8]})
+				trade.update({'Profit_Take':entry[9]})
+				trade.update({'Stop_Loss':entry[10]})
+				trade.update({'Order_Price':entry[11]})
+				self.openTrades.append(trade)				
+
 		conn.commit()
 		conn.close()
 
@@ -116,28 +130,18 @@ class PnL(object):
 
 
 	def ListOpenTrades(self,trades):
-		openTrades=[]
-		for trade in trades:
-			if trade['Status']=='Open':
-				openTrades.append(trade)
-			for trade in openTrades:
-				trade.pop('UUID',None)
-				trade.pop('Time',None)
-				trade.pop('Close_Time',None)
-				trade.pop('Status',None)
-				trade.pop('Strategy',None)
-				trade.pop('Return',None)
-				trade.update({'Price':ccxt.binance().fetch_ticker(languageHandler(output_lang="TradeModule", inputs=[trade['Symbol']], input_lang='Binance')[0])['last']})
-				if trade['Clip_Size']<0:
-					trade.update({'R_Return':1-(trade['Price']/(trade['Order_Price']))})
-					trade.update({'R_PnL':trade['R_Return']*trade['USD']})
-					trade.update({'USD':-trade['USD']})
-				else:
-					trade.update({'R_Return':(trade['Price']/trade['Order_Price'])})
-					trade.update({'R_PnL':trade['R_Return']*trade['USD']})
+		for trade in self.openTrades:
+			trade.update({'Price':ccxt.binance().fetch_ticker(languageHandler(output_lang="TradeModule", inputs=[trade['Symbol']], input_lang='Binance')[0])['last']})
+			if trade['Clip_Size']<0:
+				trade.update({'R_Return':1-(trade['Price']/(trade['Order_Price']))})
+				trade.update({'R_PnL':trade['R_Return']*trade['USD']})
+				trade.update({'USD':-trade['USD']})
+			else:
+				trade.update({'R_Return':(trade['Price']/trade['Order_Price'])-1})
+				trade.update({'R_PnL':trade['R_Return']*trade['USD']})
 
 		# self.Open_Trades= pd.DataFrame(openTrades).set_index('Symbol')
-		self.Open_Trades=openTrades
+		self.Open_Trades=self.openTrades
 		for trade in self.Open_Trades:
 			print(trade)
 		print(self.Open_Trades)
@@ -214,7 +218,7 @@ class PnL(object):
 
 
 	def ExcelWriter(self):
-		writer = pd.ExcelWriter(f'{self.date} Cortex PnL.xlsx', engine='xlsxwriter')
+		writer = pd.ExcelWriter(f'C:\\Users\\Christian\\Google Drive\\PyScripts\\ConfluenceCortex\\Reports\\{self.date} Cortex PnL.xlsx', engine='xlsxwriter')
 		workbook  = writer.book
 		merge_format = workbook.add_format({
 			'bold': 1,
@@ -382,5 +386,4 @@ class PnL(object):
 			msg = f'{t["Trades"]} Overnight Cortex Trades\n{opTrades if t["Open"]>0 else none_open}Closed Trades Net Return: {(t["Return"]*100):.2f}%'
 			print(msg)
 		send_message(msg)
-
 

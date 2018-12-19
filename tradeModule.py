@@ -40,7 +40,7 @@ class TradeClient():
 		self.factory = getattr(ccxt,exchange)()
 		self.factory.apiKey=getattr(keychain,exchange).Christian('API')
 		self.factory.secret=getattr(keychain,exchange).Christian('Secret')
-		#self.factory.verbose=True
+		#self.factory.verbose=True   
 		if orderType == 'limit-buy': self.limitBuy()
 		elif orderType == 'limit-sell': self.limitSell()
 		elif orderType == 'market-buy': self.marketBuy()
@@ -67,6 +67,7 @@ class TradeClient():
 		else: print('ERROR: Invalid orderPrice for orderType')
 
 	def marketBuy(self):
+		print(self.market, self.clipSize, 'Gere')
 		order=self.factory.create_market_buy_order(self.market, self.clipSize)
 		self.oid = order['id']
 		self.tPrice = order['price']

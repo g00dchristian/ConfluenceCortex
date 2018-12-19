@@ -134,28 +134,7 @@ class tradingInterface(object):
 		self._error_observers.append(callback)
 
 
-class kLines():
-	def __init__(self,market ="",kOpen=None,kClose=None,kHigh=None,kLow=None,kVolume=None,openTime=None, closeTime=None,interval=None,exchange = ""):
-		self.market = market
-		self.exchange = exchange
-		self.kOpen = kOpen
-		self.kClose = kClose
-		self.kLow = kLow
-		self.kHigh = kHigh
-		self.kVolume = kVolume
-		self.openTime = openTime
-		self.closeTime = closeTime
-		self.interval = interval
-
-
-	def __repr__(self):
-		return "kLine: " + str([(var +": "+ str(getattr(self,var))) for var in dir(self)])
-
-	def __dir__(self):
-		return ['market', 'openTime', 'closeTime', 'kOpen', 'kHigh', 'kLow', 'kClose', 'kVolume', 'exchange']
-
-	def __hash__(self):
-		return hash((self.kClose,self.kOpen,self.kHigh,self.kVolume,self.kLow,self.market,self.exchange))
+ 	
 
 
 

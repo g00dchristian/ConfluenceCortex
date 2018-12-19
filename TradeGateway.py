@@ -118,16 +118,28 @@ def Open_Trade(refracList, openTrades, pkg, tpkg):
 		if opentotal >= tpkg['MaxOpen']:
 			eligible=0
 			gatewayresult = ('FAILED-- Total open trades (%.1f) exceeds restriction (%.1f)'%(opentotal,tpkg['MaxOpen']))
-	if pkg['Market'][-4:] != 'USDT':
+	if pkg['Market'][-4:] != 'USDT' and pkg['Exchange'] == 'Binance':
 		eligible=0
 		gatewayresult=('FAILED-- Pair not USDT pair and not recognised by clipSize_USD calculator')
+	
+	if pkg['Market'][-3:] != 'USD' and pkg['Exchange'] == 'Bitmex':
+		eligible=0
+		gatewayresult=('FAILED-- Pair not USD on Bitmex therefore not supported by clipSize_USD calculator')
+
+
 	if time.time() < limiter:
 		eligible=0
 		gatewayresult=('FAILED-- Trade Rate Limiter Exceeded')			 
 
+
+
+
 	if eligible == 1:
 		try:
-			clipSize = (tpkg['usdClipSize']/pkg['Price'])
+			if pkg['Exchange'] == 'Binance':
+				clipSize = (tpkg['usdClipSize']/pkg['Price'])
+			elif pkg['Exchange'] == 'Bitmex':
+				clipSize = tpkg['usdClipSize']
 			if pkg['Side'] == 'buy':
 				oType='market-buy'
 				oType=oType+pkg['Testing']
@@ -135,6 +147,7 @@ def Open_Trade(refracList, openTrades, pkg, tpkg):
 				oType='market-sell'
 				oType=oType+pkg['Testing']
 				clipSize=clipSize*-1
+
 
 			TC=TradeClient(exchange=pkg['Exchange'].lower(),
 				market=languageHandler(output_lang="TradeModule", inputs=[pkg['Market']], input_lang=pkg['Exchange'])[0],
@@ -148,7 +161,10 @@ def Open_Trade(refracList, openTrades, pkg, tpkg):
 			pkg.update({'clipSize':clipSize})
 			pkg.update({'Exchange_UUID':TC.oid})
 			pkg.update({'tPrice':TC.tPrice})
-			pkg.update({'USD':(abs(float(pkg['Price'])*float(clipSize)))}) #TESTING LINE
+			if pkg['Exchange']=='Binance':
+				pkg.update({'USD':(abs(float(pkg['Price'])*float(clipSize)))}) #TESTING LINE
+			elif pkg['Exchange']=='Bitmex':
+				pkg.update({'USD':clipSize})
 			
 			#pkg.update({'USD':(abs(float(TC.tPrice)*float(clipSize)))})
 			sql_log=['Open',(pkg,tpkg['CR'],tpkg['CF'])]	
