@@ -106,7 +106,7 @@ class Confluence_Cortex():
 
 		
 		#-- TESTING --------------------------------------------------------------- 
-		testing = 0
+		testing = 1
 		if testing == 1:
 			self.testSwitch='-test'
 			self.log('###----------- TESTING MODE -----------###')
@@ -413,7 +413,7 @@ class Confluence_Cortex():
 
 
 	def Cortex(self, MC, market):
-		CR = -1000 #Confluence Rating
+		CR = 1000 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
 		#-- MARKET SENTIMENT -------------------------------------------------------
@@ -596,7 +596,7 @@ class Confluence_Cortex():
 bn = 'binance'
 bx = 'bitmex'
 ################################
-exchange=      bx   #<-----------------------------
+exchange=      bn   #<-----------------------------
 ################################
 
 if exchange == 'binance':
