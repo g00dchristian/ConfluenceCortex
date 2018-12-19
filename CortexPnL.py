@@ -386,4 +386,3 @@ class PnL(object):
 			msg = f'{t["Trades"]} Overnight Cortex Trades\n{opTrades if t["Open"]>0 else none_open}Closed Trades Net Return: {(t["Return"]*100):.2f}%'
 			print(msg)
 		send_message(msg)
-

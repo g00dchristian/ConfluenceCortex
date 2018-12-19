@@ -74,7 +74,7 @@ class send_email:
 
     return {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
 
-  def create_message_with_excel_attachment(self, sender, to, subject, message_text, file):
+  def create_message_with_excel_attachment(self, sender, to, subject, message_text, file, name):
     message = MIMEMultipart()
     message['to'] = to
     message['from'] = sender
@@ -86,7 +86,7 @@ class send_email:
     part = MIMEBase('application', "vnd.ms-excel")
     part.set_payload(open(file, "rb").read())
     encoders.encode_base64(part)
-    part.add_header('Content-Disposition', 'attachment', filename=file)
+    part.add_header('Content-Disposition', 'attachment', filename=name)
     message.attach(part)
 
     content_type, encoding = mimetypes.guess_type(file)

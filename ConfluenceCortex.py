@@ -86,7 +86,7 @@ class Confluence_Cortex():
 	def __init__(self, exchange, logFileName, TimeFrame, ticker_fetch):
 		#-- INTRINSIC --------------------------------------------------------------- 
 		localpath = os.getcwd()+'//'
-
+ 
 		### Logging
 		self.logger = logging.getLogger(name = "Full")
 		#hdlr = logging.FileHandler(str(os.path.dirname(__file__)) +'\\' + logFileName)
@@ -98,7 +98,7 @@ class Confluence_Cortex():
 
 		self.log('loaded')
 		#self.TimeFrame=sys.argv[1]
-		self.cortex_version=3.2
+		self.cortex_version=4.0
 		self.exchange=exchange
 		self.TimeFrame=TimeFrame
 		self.sc=SlackClient(keychain.slack.TradeAlertApp('BotUser'))

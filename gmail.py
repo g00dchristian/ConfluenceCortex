@@ -49,10 +49,10 @@ try:
 	service = discovery.build('gmail','v1', http=http)
 
 
-	# recipients='blight@atlantictrading.co.uk; ren@atlantictrading.co.uk; sutton@atlantictrading.co.uk; abhayaratna@atlantictrading.co.uk'
-	recipients='abhayaratna@atlantictrading.co.uk'
+	recipients='blight@atlantictrading.co.uk; ren@atlantictrading.co.uk; sutton@atlantictrading.co.uk; abhayaratna@atlantictrading.co.uk'
+	# recipients='abhayaratna@atlantictrading.co.uk'
 	sendInst = send_gmail.send_email(service)
-	message = sendInst.create_message_with_excel_attachment('rp.cryptotrading@gmail.com', recipients, f'Cortex Report: {datetime.today().strftime("%Y-%m-%d")}', 'Cortex Report attached', f'C:\\Users\\Christian\\Google Drive\\PyScripts\\ConfluenceCortex\\Reports\\{datetime.today().strftime("%Y-%m-%d")} Cortex PnL.xlsx')
+	message = sendInst.create_message_with_excel_attachment('rp.cryptotrading@gmail.com', recipients, f'Cortex Report: {datetime.today().strftime("%Y-%m-%d")}', 'Cortex Report attached', f'C:\\Users\\Christian\\Google Drive\\PyScripts\\ConfluenceCortex\\Reports\\{datetime.today().strftime("%Y-%m-%d")} Cortex PnL.xlsx', f'{datetime.today().strftime("%Y-%m-%d")} Cortex PnL.xlsx')
 	sendInst.send_message('me', message)
 
 
