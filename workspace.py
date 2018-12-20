@@ -1,2 +1,2 @@
-a='15m'
-print(a[:-1])
+a='Pablo'
+print(a.lower())

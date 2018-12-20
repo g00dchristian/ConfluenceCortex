@@ -5,7 +5,7 @@ import sqlite3
 import xlsxwriter 
 import ccxt
 import pandas as pd
-from languageHandled import languageHandler
+from bnWebsocket.languageHandled import languageHandler
 from accountValue import Account_Balance
                                                                                                                            
 class PnL(object):
@@ -77,7 +77,7 @@ class PnL(object):
 		# conn = sqlite3.connect(r'C:\Users\Christian\Dropbox\Crypto\Python\ConfluenceCortex\tradelog.db')
 		c = conn.cursor()
 		trades = []
-		SQL='''SELECT TL.UUID, TL.Time, TL.Close_Time, TL.Status, TL.Strategy, TL.Symbol, TR.Return, TL.USD_Value, TL.Clip_Size, TR.Profit_Level, TR.Stop_Level, TR.OrderPrice
+		SQL='''SELECT TL.UUID, TL.Time, TL.Close_Time, TL.Status, TL.Strategy, TL.Symbol, TR.Return, TL.USD_Value, TL.Clip_Size, TR.Profit_Level, TR.Stop_Level, TR.OrderPrice, TL.Exchange
 		FROM Confluence_Ratings as CR
 		left join Trade_List as TL
 			ON CR.UUID = TL.UUID
@@ -99,6 +99,7 @@ class PnL(object):
 				trade.update({'Profit_Take':entry[9]})
 				trade.update({'Stop_Loss':entry[10]})
 				trade.update({'Order_Price':entry[11]})
+				trade.update({'Exchange':entry[12]})
 				trades.append(trade)
 			else:
 				trade={}
@@ -108,6 +109,7 @@ class PnL(object):
 				trade.update({'Profit_Take':entry[9]})
 				trade.update({'Stop_Loss':entry[10]})
 				trade.update({'Order_Price':entry[11]})
+				trade.update({'Exchange':entry[12]})
 				self.openTrades.append(trade)				
 
 		conn.commit()
@@ -131,7 +133,8 @@ class PnL(object):
 
 	def ListOpenTrades(self,trades):
 		for trade in self.openTrades:
-			trade.update({'Price':ccxt.binance().fetch_ticker(languageHandler(output_lang="TradeModule", inputs=[trade['Symbol']], input_lang='Binance')[0])['last']})
+			
+			trade.update({'Price':getattr(ccxt,trade['Exchange'].lower())().fetch_ticker(languageHandler(output_lang="TradeModule", inputs=[trade['Symbol']], input_lang=trade['Exchange'])[0])['last']})
 			if trade['Clip_Size']<0:
 				trade.update({'R_Return':1-(trade['Price']/(trade['Order_Price']))})
 				trade.update({'R_PnL':trade['R_Return']*trade['USD']})
@@ -139,7 +142,7 @@ class PnL(object):
 			else:
 				trade.update({'R_Return':(trade['Price']/trade['Order_Price'])-1})
 				trade.update({'R_PnL':trade['R_Return']*trade['USD']})
-
+ 
 		# self.Open_Trades= pd.DataFrame(openTrades).set_index('Symbol')
 		self.Open_Trades=self.openTrades
 		for trade in self.Open_Trades:
@@ -386,3 +389,4 @@ class PnL(object):
 			msg = f'{t["Trades"]} Overnight Cortex Trades\n{opTrades if t["Open"]>0 else none_open}Closed Trades Net Return: {(t["Return"]*100):.2f}%'
 			print(msg)
 		send_message(msg)
+PnL('Daily')
