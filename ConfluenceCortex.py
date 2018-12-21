@@ -14,7 +14,6 @@ import time
 import sys
 import os
 
-
 ### Repo Imports
 from shifteraverage import calc
 from tradeModule import TradeClient
@@ -34,7 +33,6 @@ from TradeGateway import Close_Trades
 from TradeGateway import Open_Trade
 
 ### Offline Imports 
-from bnWebsocket.klines import bnStream
 from bnWebsocket.languageHandled import languageHandler
 from bnWebsocket import keychain
 from bxWebsocket.interface import *
@@ -46,7 +44,8 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
 #pd.set_option('display.height', None)
 
-sql_lock = threading.Lock()
+sql_lock = threading.Lock() #To prevent simultaneous logging on the tradelog.db
+
 
 class SQL_Thread(threading.Thread):
     def __init__(self, queue, args=(), kwargs=None):
@@ -64,6 +63,7 @@ class SQL_Thread(threading.Thread):
 	        self.do_thing_with_message(val)
 
     def do_thing_with_message(self, data):
+    	'''Different messages are logged in various manners depending on how they are tagged'''
     	with sql_lock:
     		if data[0]=='Open':
     			sqlogger(*data[1])
@@ -83,6 +83,13 @@ class SQL_Thread(threading.Thread):
 
 
 class Confluence_Cortex():
+	'''
+	This is the primary class for the Cortex. It acts as the skeleton from which all of the functions interact with each other
+
+	N.B: For all testing, change the 'testing' variable to 1
+		Doing so will append a testing note to all trades which will instead the function to a dummy trade function within tradeModule.py
+		Everything else will occur as usual however no trades will execute and fake trade id's will be passed to the tradelog.db
+	'''
 	def __init__(self, exchange, logFileName, TimeFrame, ticker_fetch):
 		#-- INTRINSIC --------------------------------------------------------------- 
 		localpath = os.getcwd()+'//'
@@ -160,7 +167,7 @@ class Confluence_Cortex():
 
 		self.market_jar=[]
 
-
+		#-- BINANCE WEBSOCKET MANAGEMENT ----------------------------------------------------
 		if exchange == 'binance':
 			print('Entered binance loop')
 			impass = 0
@@ -187,7 +194,7 @@ class Confluence_Cortex():
 
 
 
-
+		#-- BITMEX WEBSOCKET MANAGEMENT -------------------------------------------------------
 		elif exchange == 'bitmex':
 			impass=0
 			for market in ticker_fetch:
@@ -225,6 +232,13 @@ class Confluence_Cortex():
 
 
 	def FetchPast(self, exchange):
+		'''
+		This class retrieve's the history for each market and constructs a df of klines
+		it primarily uses the fetch_ohlcv ccxt function.
+
+		The benefit of this class is that everytime the code is not dependant on running for any period of time, it is effective immediately after initialization'
+
+		'''
 		for market in self.market_jar:
 			temp_p=self.p
 			temp_tf=self.TimeFrame
@@ -327,6 +341,9 @@ class Confluence_Cortex():
 
 
 	def WebSocketFunction(self,kline):
+		'''
+		This is the callback function for the Websocket - Each message that is pushed through is passed to this function and received as the "kline" variable 
+		'''
 		# print(kline)
 		if self.startup == 1:
 			time.sleep(4)
@@ -374,6 +391,10 @@ class Confluence_Cortex():
 
 
 	def Conditions(self, df, market):
+		'''
+		The role of this function is to recieve the market df and pass them to analytical functions to determine market conditions.
+		E.g. Market Sentiment, Price Shear, RSI, Inside Bars, etc.
+		'''
 		#-- SETTINGS ---------------------------------------------------------------
 		propertyDic = {
 		'Market':market,
@@ -413,6 +434,13 @@ class Confluence_Cortex():
 
 
 	def Cortex(self, MC, market):
+		'''
+		The role of this function is to receive the analysis completed within the preceeding 'Conditions' function and 
+		refer to the pre-defined Confluence Value spreadsheet (self.confSet)
+
+		As the function iterates through the market conditions, an overall Confluence Value is determined.
+
+		'''
 		CR = 0 #Confluence Rating
 		confluenceRating={}
 		confluenceFactor={}
