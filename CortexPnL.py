@@ -390,3 +390,6 @@ class PnL(object):
 			print(msg)
 		send_message(msg)
 PnL('Daily')
+
+
+

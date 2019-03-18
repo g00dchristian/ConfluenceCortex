@@ -26,4 +26,3 @@ for post in circles:
 	dic.update({'Status':status})
 	ratings.update({time:dic})
 	print(f'{time}: {status} ({rating})')
-

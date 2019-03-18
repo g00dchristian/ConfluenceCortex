@@ -35,7 +35,13 @@ from TradeGateway import Open_Trade
 ### Offline Imports 
 from bnWebsocket.languageHandled import languageHandler
 from bnWebsocket import keychain
+from bnWebsocket.klines import *
 from bxWebsocket.interface import *
+from bnWebsocket.BinanceTradeSocket import kLines
+
+
+### Backtesting
+from sql_to_py import *
 
 
 ### DataFram View Options
@@ -113,7 +119,11 @@ class Confluence_Cortex():
 
 		
 		#-- TESTING --------------------------------------------------------------- 
-		testing = 0
+		backtesting = 1
+		testing = 1
+		if backtesting == 1 and testing == 0:
+			print('ERROR: Cannot be have "backtesting" activated without "testing mode" activated')
+			sys.exit()
 		if testing == 1:
 			self.testSwitch='-test'
 			self.log('###----------- TESTING MODE -----------###')
@@ -190,7 +200,12 @@ class Confluence_Cortex():
 
 				callbacks=[self.WebSocketFunction]
 				bnStream(self.market_jar, self.TimeFrame, callbacks)
-				self.FetchPast(exchange)
+				if backtesting == 1:
+					print('2s sleep')
+					time.sleep(2)
+					self.FetchBacktesting()
+				else:
+					self.FetchPast(exchange)
 
 
 
@@ -210,10 +225,16 @@ class Confluence_Cortex():
 			if impass==0:
 				self.market_jar=ticker_fetch
 				try:
-					self.FetchPast(exchange)
+					if backtesting == 1:
+						self.FetchBacktesting()
+						impass=1 #just for backtesting preparation stuff
+					else:
+						self.FetchPast(exchange)
+				
 				except Exception as e:
 					self.log(f'FetchPast Failed-- {e}')
 					impass=1
+			
 			if impass == 0:
 				print('Start WebSocketFunction')
 				bmi=bitmex_interface(market=ticker_fetch[0], tf=self.TimeFrame, funk=self.WebSocketFunction)
@@ -332,11 +353,69 @@ class Confluence_Cortex():
 				x=x-1
 			df = pd.DataFrame(getattr(self,dfName))
 			df = df.set_index('Period')
-			##print(getattr(self,name))
+			print(getattr(self,name))
+			print(df)
 		#print('-------------- STARTED --------------')
 		self.startup=0
 	
 
+
+	def FetchBacktesting(self):
+		for market in self.market_jar:
+			temp_p=self.p
+			temp_tf=self.TimeFrame
+			self.trades.update({market:[]})
+			sqlref=languageHandler(output_lang="Binance", inputs=[market], input_lang='TradeModule')[0]
+			print(sqlref)
+			name = market+'_past'
+			if exchange == 'binance':
+				# print(sqlpy(table=sqlref+"_"+self.TimeFrame)[:130])
+				setattr(self, name, sqlfeeder(table=(sqlref+"_"+self.TimeFrame), periods=self.p))
+				# print(getattr(self,name)['fetchpast'])
+
+		
+				print(1)
+				dfName = market+'_df'
+				setattr(self, dfName, [])
+				cf = market+'_cf' #Confluence Factor
+				setattr(self, cf, 0)
+
+
+				x=self.p
+				for candle in getattr(self,name)['fetchpast']:
+					pdEntry = {}
+					pdEntry.update({'Time': candle[1]})
+					pdEntry.update({'Volume':candle[6]})
+					pdEntry.update({'High':candle[3]})
+					pdEntry.update({'Low':candle[4]})
+					pdEntry.update({'Open':candle[2]})
+					pdEntry.update({'Close':candle[5]})
+					pdEntry.update({'Period':x})
+					getattr(self, dfName).append(pdEntry)
+					x=x-1
+				df = pd.DataFrame(getattr(self,dfName))
+				df = df.set_index('Period')
+			
+				self.BackTestPasser(getattr(self,name)['feed'])
+
+			else:
+				print('Exchange unsupported') 
+
+
+
+
+
+	def BackTestPasser(self, data):
+		if len(self.market_jar)>1:
+			print("Cannot backtest more than one market at a time")
+		else:
+			for market in self.market_jar:
+				name = languageHandler(output_lang="Binance", inputs=[market], input_lang='TradeModule')[0]
+
+			for candle in data:
+				kline = kLines(market=name,kOpen=candle[2],kClose=candle[5],kHigh=candle[3],kLow=candle[4],kVolume=candle[6],openTime=candle[1], closeTime=None,interval=None,exchange = "")
+				print(kline)
+				time.sleep(0.01)
 
 
 
@@ -387,7 +466,7 @@ class Confluence_Cortex():
 				self.log('\nConfluence Settings Updated: \n%s'%(self.confSet))	
 			# print(df)		
 			self.Conditions(df=df, market=kline.market)
-
+			
 
 
 	def Conditions(self, df, market):
@@ -605,13 +684,9 @@ class Confluence_Cortex():
 
 
 
-
 	def log(self,msg):
 		print('LOG: '+msg)
 		self.logger.info(msg)
-
-
-
 
 
 
@@ -621,16 +696,18 @@ class Confluence_Cortex():
 #####################################################################################################################################
 
 
-# bn = 'binance'
-# bx = 'bitmex'
-# ################################
-# exchange=      bn   #<-----------------------------
-# ################################
+bn = 'binance'
+bx = 'bitmex'
+################################
+exchange=      bn   #<-----------------------------
+################################
 
-# if exchange == 'binance':
-# 	tickers = ['BTC/USDT']
-# elif exchange == 'bitmex':
-# 	tickers = ['BTC/USD']
+if exchange == 'binance':
+	tickers = ['BTC/USDT']
+elif exchange == 'bitmex':
+	tickers = ['BTC/USD']
 
 
-# Confluence_Cortex(exchange = exchange, logFileName='Confluence.log', TimeFrame='1h', ticker_fetch=tickers)
+Confluence_Cortex(exchange = exchange, logFileName='Confluence.log', TimeFrame='1m', ticker_fetch=tickers)
+
+
