@@ -17,9 +17,9 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.width', None)
 	
-def Price_Shear(df, propertyDic, EMAs):
+def Price_Shear(dforig, propertyDic, EMAs, entry=None):
 	"""EMAs variable must be a list"""
-	
+	df=dforig.copy()
 	ShearFactor=1.012
 
 	if len(EMAs)==2:
@@ -70,6 +70,9 @@ def Price_Shear(df, propertyDic, EMAs):
 		output='2 EMA inputs required'
 	# print(df)
 	# print(EMAcentre)
+	
+	if entry != None:
+		entry.update({'Price_Shear':output})
 	return(output)
 
 #Price_Shear(df, propertyDic,[12,26])

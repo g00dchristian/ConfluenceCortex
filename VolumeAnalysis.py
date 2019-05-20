@@ -1,5 +1,8 @@
 
-def Volume_Analysis(df, propertyDic):
+def Volume_Analysis(dforig, propertyDic, entry=None):
+	df=dforig.copy()
+	
+
 	consecVolMin = 3
 
 	for index, row in df.iterrows():
@@ -27,13 +30,20 @@ def Volume_Analysis(df, propertyDic):
 	'Accel/Decel':propertyDic['VolumeAnalysis'],
 	'Type':volType
 	}
+
+	if entry != None:
+		entry.update({'Volume':results})
+
 	return results
 
 
-def Abnormal_Volume(df, vM=1.5, pM=1.1):
+def Abnormal_Volume(dforig, entry=None, vM=1.5, pM=1.1):
+	df=dforig.copy()
 	vdf=df[-30:]
 	vdf.loc[:,'Weighting'] = 1/(vdf.index**0.5)
 	weight_sum = vdf.loc[:,'Weighting'].sum()
+	vdf['ClsShift'] = vdf['Close'].shift(1)
+	vdf['Change'] = vdf['Close'] - vdf['ClsShift']
 	vdf.loc[:,'vSignal'] = (vdf.loc[:,'Volume'] * vdf.loc[:,'Weighting']) /weight_sum
 	vdf.loc[:,'pSignal'] = (abs(vdf.loc[:,'Change']) * vdf.loc[:,'Weighting']) /weight_sum
 	vol_mv_avg = vdf.loc[:,'vSignal'].sum()
@@ -64,6 +74,9 @@ def Abnormal_Volume(df, vM=1.5, pM=1.1):
 	'pThreshold':pThreshold,
 	'Result':result
 	}
+
+	if entry != None:
+		entry.update({'Abnormal_Volume':AbnorVolResult})
 
 	return AbnorVolResult
 

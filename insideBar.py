@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-def Inside_Bar(df, propertyDic):
+def Inside_Bar(dforig, propertyDic, entry=None):
+	df=dforig.copy()
 	numCandles=15
 	consecIB=0
 	df=df[-int(numCandles):]
@@ -27,4 +28,7 @@ def Inside_Bar(df, propertyDic):
 
 
 	result={'Status':current,'ConsecIB':df.loc[2,'IBs']}
+
+	if entry != None:
+		entry.update({'Inside_Bar':result})
 	return result

@@ -14,7 +14,7 @@ import time
 import sys
 import os
 
-### Repo Imports
+### Repo Imports c
 from shifteraverage import calc
 from tradeModule import TradeClient
 from VolumeAnalysis import *
@@ -197,56 +197,15 @@ class Confluence_Cortex():
 						setattr(self, MSname, 'Unknown')
 						#print(market)
 
-
-				callbacks=[self.WebSocketFunction]
-				bnStream(self.market_jar, self.TimeFrame, callbacks)
+				if backtesting == 0:
+					callbacks=[self.WebSocketFunction]
+					bnStream(self.market_jar, self.TimeFrame, callbacks)
 				if backtesting == 1:
 					print('2s sleep')
 					time.sleep(2)
 					self.FetchBacktesting()
 				else:
 					self.FetchPast(exchange)
-
-
-
-		#-- BITMEX WEBSOCKET MANAGEMENT -------------------------------------------------------
-		elif exchange == 'bitmex':
-			impass=0
-			for market in ticker_fetch:
-				if market not in bitmex_markets:
-					self.log(f'{market} -NOT SUPPORTED BY- {exchange}')
-					impass=1
-			if len(ticker_fetch)>1:
-				self.log('Bitmex function can only support one market')
-				impass=1
-			if self.TimeFrame not in bitmex_timeframes:
-				self.log(f'\n\nTimeFrame not supported yet-- supported timeframes: {bitmex_timeframes}\n\n')
-				impass=1
-			if impass==0:
-				self.market_jar=ticker_fetch
-				try:
-					if backtesting == 1:
-						self.FetchBacktesting()
-						impass=1 #just for backtesting preparation stuff
-					else:
-						self.FetchPast(exchange)
-				
-				except Exception as e:
-					self.log(f'FetchPast Failed-- {e}')
-					impass=1
-			
-			if impass == 0:
-				print('Start WebSocketFunction')
-				bmi=bitmex_interface(market=ticker_fetch[0], tf=self.TimeFrame, funk=self.WebSocketFunction)
-				bmi.start()
-
-		else:
-			print('')
-			self.log('-- EXCHANGE NOT SUPPORTED --')
-			
-
-
-		#-- WEBSOCKET ---------------------------------------------------------------
 
 
 
@@ -359,7 +318,6 @@ class Confluence_Cortex():
 		self.startup=0
 	
 
-
 	def FetchBacktesting(self):
 		for market in self.market_jar:
 			temp_p=self.p
@@ -373,9 +331,8 @@ class Confluence_Cortex():
 				setattr(self, name, sqlfeeder(table=(sqlref+"_"+self.TimeFrame), periods=self.p))
 				# print(getattr(self,name)['fetchpast'])
 
-		
-				print(1)
-				dfName = market+'_df'
+				# dfName = market+'_df' #THIS IS WHAT IT SHOULD BE BUT IT I MANUALLY OVERODE IT TO SEE IF IT WAS THE CAUSE OF THE ERROR BEING THROWN
+				dfName = 'BTCUSDT_df' #THIS IS WHAT IT SHOULD BE BUT IT I MANUALLY OVERODE IT TO SEE IF IT WAS THE CAUSE OF THE ERROR BEING THROWN
 				setattr(self, dfName, [])
 				cf = market+'_cf' #Confluence Factor
 				setattr(self, cf, 0)
@@ -395,14 +352,13 @@ class Confluence_Cortex():
 					x=x-1
 				df = pd.DataFrame(getattr(self,dfName))
 				df = df.set_index('Period')
-			
+				self.startup=0
+
 				self.BackTestPasser(getattr(self,name)['feed'])
+
 
 			else:
 				print('Exchange unsupported') 
-
-
-
 
 
 	def BackTestPasser(self, data):
@@ -414,21 +370,22 @@ class Confluence_Cortex():
 
 			for candle in data:
 				kline = kLines(market=name,kOpen=candle[2],kClose=candle[5],kHigh=candle[3],kLow=candle[4],kVolume=candle[6],openTime=candle[1], closeTime=None,interval=None,exchange = "")
-				print(kline)
-				time.sleep(0.01)
-
+				# print(kline)
+				self.WebSocketFunction(kline)
+				time.sleep(0.1)
 
 
 	def WebSocketFunction(self,kline):
+		a = time.time()
 		'''
 		This is the callback function for the Websocket - Each message that is pushed through is passed to this function and received as the "kline" variable 
 		'''
-		# print(kline)
 		if self.startup == 1:
 			time.sleep(4)
 		else:
 			if self.exchange=='binance':
-				dfName = languageHandler(output_lang="TradeModule", inputs=[kline.market], input_lang=kline.exchange)[0]+'_df'
+				# dfName = languageHandler(output_lang="TradeModule", inputs=[kline.market], input_lang=kline.exchange)[0]+'_df'
+				dfName = kline.market+'_df'
 			elif self.exchange =='bitmex':
 				dfName = 'BTC/USD_df'
 			candleData = {
@@ -464,12 +421,14 @@ class Confluence_Cortex():
 				self.confSet=pd.read_excel(self.confSetPath,index_col=0)
 				self.confSetMod=os.path.getmtime(self.confSetPath)
 				self.log('\nConfluence Settings Updated: \n%s'%(self.confSet))	
-			# print(df)		
-			self.Conditions(df=df, market=kline.market)
+			# print(df)	
+			b=time.time()
+			print(f'Time taken for WebSockFunc: x{b-a}')
+			self.ConditionsThread(df=df, market=kline.market)
 			
 
-
 	def Conditions(self, df, market):
+		a=time.time()
 		'''
 		The role of this function is to recieve the market df and pass them to analytical functions to determine market conditions.
 		E.g. Market Sentiment, Price Shear, RSI, Inside Bars, etc.
@@ -488,16 +447,28 @@ class Confluence_Cortex():
 
 		#-- MARKET LEVELS ----------------------------------------------------------
 		MS = Market_Sentiment(df, propertyDic)
+		b=time.time()
+		print(f'Time taken for MS: {b-a}')
 		#-- PRICE SHEAR ------------------------------------------------------------
 		PS = Price_Shear(df, propertyDic,[12,26])
+		c=time.time()
+		print(f'Time taken for PS: {c-b}')
 		#-- GENERIC VOLUME ---------------------------------------------------------
 		VA = Volume_Analysis(df, propertyDic)
+		d=time.time()
+		print(f'Time taken for VA: {d-c}')
 		#-- RSI --------------------------------------------------------------------
 		RSI = Indicator_RSI(df, propertyDic)
+		e=time.time()
+		print(f'Time taken for RSI: {e-d}')
 		#-- INSIDE BAR -------------------------------------------------------------
 		IB = Inside_Bar(df, propertyDic)
+		f=time.time()
+		print(f'Time taken for IB: {f-e}')
 		#-- ABNORMAL VOLUME --------------------------------------------------------
 		AVol = Abnormal_Volume(df)
+		g=time.time()
+		print(f'Time taken for AB: {g-f}')
 
 		Market_Conditions={
 		'Levels':MS,
@@ -508,11 +479,119 @@ class Confluence_Cortex():
 		'Abnormal_Volume':AVol,
 		'Last_Price':df.loc[1,'Close']
 		}
-
+		h=time.time()
+		print(f'Time taken for Conditions: x{h-a}')
 		self.Cortex(Market_Conditions, market)
 
 
+
+
+
+	def ConditionsThread(self, df, market):
+		a=time.time()
+		'''
+		The role of this function is to recieve the market df and pass them to analytical functions to determine market conditions.
+		E.g. Market Sentiment, Price Shear, RSI, Inside Bars, etc.
+		'''
+		#-- SETTINGS ---------------------------------------------------------------
+		propertyDic = {
+		'Market':market,
+		'Periods':self.p,
+		'Last_Level':market+'_lastlevel',
+		'RSI':market+'_RSI',
+		'PS':market+'_PS',
+		'Break':market+'_Break',
+		'Sentiment':market+'_MS',
+		'VolumeAnalysis':market+'_VA'
+		}
+
+		threads=[]
+		Market_Condys={}
+		Market_Conditions={}
+
+
+		#-- MARKET LEVELS ----------------------------------------------------------
+		process = threading.Thread(target=Market_Sentiment, args=[df, propertyDic, Market_Conditions])
+		process.start()
+		threads.append(process)
+
+		# MS = Market_Sentiment(df, propertyDic)
+
+		#-- PRICE SHEAR ------------------------------------------------------------
+		process = threading.Thread(target=Price_Shear, args=[df, propertyDic, [12,26], Market_Conditions])
+		process.start()
+		threads.append(process)
+
+
+		# PS = Price_Shear(df, propertyDic,[12,26], Market_Conditions)
+
+		#-- GENERIC VOLUME ---------------------------------------------------------
+		process = threading.Thread(target=Volume_Analysis, args=[df, propertyDic, Market_Conditions])
+		process.start()
+		threads.append(process)
+
+		# VA = Volume_Analysis(df, propertyDic)
+
+		#-- RSI --------------------------------------------------------------------
+		process = threading.Thread(target=Indicator_RSI, args=[df, propertyDic, Market_Conditions])
+		process.start()
+		threads.append(process)	
+
+		# RSI = Indicator_RSI(df, propertyDic)
+
+
+		#-- INSIDE BAR -------------------------------------------------------------
+		process = threading.Thread(target=Inside_Bar, args=[df, propertyDic, Market_Conditions])
+		process.start()
+		threads.append(process)		
+
+
+
+		# IB = Inside_Bar(df, propertyDic)
+
+
+		#-- ABNORMAL VOLUME --------------------------------------------------------
+		
+
+		process = threading.Thread(target=Abnormal_Volume, args=[df,Market_Conditions])
+		process.start()
+		threads.append(process)		
+
+
+
+		# AVol = Abnormal_Volume(df)
+
+
+		for process in threads:
+			process.join()
+
+
+
+		Market_Conditions.update({
+		# 'Levels':MS,
+		# 'Price_Shear':PS,
+		# 'Volume':VA,
+		# 'RSI':RSI,
+		# 'Inside_Bar':IB,
+		# 'Abnormal_Volume':AVol,
+		'Last_Price':df.loc[1,'Close']
+		})
+
+
+		h=time.time()
+		print(f'Time taken for Conditions: x{h-a}')
+		
+
+		print(Market_Conditions)
+		self.Cortex(Market_Conditions, market)
+
+
+
+
+
+
 	def Cortex(self, MC, market):
+		a=time.time()
 		'''
 		The role of this function is to receive the analysis completed within the preceeding 'Conditions' function and 
 		refer to the pre-defined Confluence Value spreadsheet (self.confSet)
@@ -636,6 +715,10 @@ class Confluence_Cortex():
 			self.threads['SQLT'].queue.join()
 			self.openTradeList=getattr(self.threads['SQLT'],temp_uuid)
 			print(self.openTradeList)
+			
+
+
+			
 		
 
 
@@ -681,14 +764,13 @@ class Confluence_Cortex():
 
 				self.dbModTime = os.path.getmtime(self.databasepath)
 
-
+		b=time.time()
+		print(f'Time taken for Cortex: x{b-a}')
 
 
 	def log(self,msg):
 		print('LOG: '+msg)
 		self.logger.info(msg)
-
-
 
 
 #####################################################################################################################################

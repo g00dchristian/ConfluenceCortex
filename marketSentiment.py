@@ -2,7 +2,8 @@ import pandas as pd
 import math
 
 
-def Market_Sentiment(df, propertyDic):
+def Market_Sentiment(dforig, propertyDic, entry=None):
+	df=dforig.copy()
 
 	pHigh = propertyDic['Periods']
 	rHigh = propertyDic['Periods']
@@ -183,7 +184,8 @@ def Market_Sentiment(df, propertyDic):
 	'Sentiment':Sentiment
 	}
 
-
+	if entry != None:
+		entry.update({'Levels':results})
 	return results
 	
 	#########################################################################################

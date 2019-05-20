@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-def Indicator_RSI(df, propertyDic):
+def Indicator_RSI(dforig, propertyDic, entry=None):
+	df=dforig.copy()
 	alpha = 1/14
 	df['ClsShift'] = df['Close'].shift(1)
 	df['Change'] = df['Close'] - df['ClsShift']
@@ -30,4 +31,7 @@ def Indicator_RSI(df, propertyDic):
 	#df.loc[propertyDic['Periods']-14, 'RS'] = np.nan
 	df['RSI'] = np.where(df['Avg Loss']==0,100,(100-(100/(1+df['RS']))))
 	
+
+	if entry != None:
+		entry.update({'RSI':df.loc[1,'RSI']})
 	return df.loc[1,'RSI']
